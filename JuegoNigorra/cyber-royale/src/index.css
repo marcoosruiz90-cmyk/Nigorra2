@@ -1229,3 +1229,95 @@ body {
     height: 45px;
   }
 }
+
+/* ==========================================
+   ESTILOS DE ARENA 2D CONTINUA Y MOVIMIENTO LIBRE
+   ========================================== */
+
+.arena-arena-2d {
+  width: 100%;
+  max-width: 580px;
+  margin: 0 auto;
+  aspect-ratio: 1;
+  background: rgba(4, 4, 8, 0.85);
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 35px rgba(0, 0, 0, 0.9), inset 0 0 25px rgba(0, 0, 0, 0.9);
+  border-radius: 16px;
+  position: relative;
+  overflow: hidden;
+  /* Fondo con cuadrícula de neón de fondo sutil */
+  background-image: 
+    linear-gradient(rgba(0, 243, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 243, 255, 0.05) 1px, transparent 1px);
+  background-size: 10% 10%;
+}
+
+/* Entidades en 2D posicionamiento absoluto */
+.entity-player-2d {
+  position: absolute;
+  font-size: 2.2rem;
+  z-index: 50;
+  transform: translate(-50%, -50%);
+  /* Movimiento súper suave con transición rápida */
+  transition: left 0.12s linear, top 0.12s linear;
+  user-select: none;
+  filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.95));
+  animation: floatPlayer 2s infinite ease-in-out;
+}
+
+.entity-player-2d.me {
+  filter: drop-shadow(0 0 15px var(--neon-cyan));
+  z-index: 60;
+  animation: floatPlayerMe 1.5s infinite ease-in-out;
+}
+
+@keyframes floatPlayerMe {
+  0%, 100% { transform: translate(-50%, -50%) translateY(0) scale(1); }
+  50% { transform: translate(-50%, -50%) translateY(-5px) scale(1.05); }
+}
+
+.entity-loot-2d {
+  position: absolute;
+  font-size: 1.8rem;
+  z-index: 20;
+  transform: translate(-50%, -50%);
+  animation: pulseLoot 1.5s infinite ease-in-out;
+  user-select: none;
+  filter: drop-shadow(0 0 4px rgba(0,0,0,0.5));
+}
+
+/* Superposición de Tormenta de Datos en 2D */
+.storm-safe-zone-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px dashed var(--neon-pink);
+  /* Sombra infinita que oscurece el exterior de la zona segura */
+  box-shadow: 0 0 0 2000px rgba(255, 0, 85, 0.15);
+  pointer-events: none;
+  transition: width 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), height 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+  z-index: 15;
+  border-radius: 4px;
+}
+
+/* Láseres en 2D */
+.laser-line-2d {
+  position: absolute;
+  background: var(--neon-cyan);
+  box-shadow: 0 0 12px var(--neon-cyan), 0 0 25px var(--neon-cyan);
+  z-index: 45;
+  pointer-events: none;
+  animation: fadeLaser 0.45s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+}
+
+.laser-line-2d.opponent {
+  background: var(--neon-pink);
+  box-shadow: 0 0 12px var(--neon-pink), 0 0 25px var(--neon-pink);
+}
+
+@keyframes fadeLaser {
+  0% { opacity: 1; transform: translate(-50%, -50%) scaleY(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scaleY(0.1); }
+}
+

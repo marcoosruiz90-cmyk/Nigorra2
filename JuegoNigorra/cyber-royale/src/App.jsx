@@ -25,13 +25,16 @@ export default function App() {
   const [roomCodeInput, setRoomCodeInput] = useState('');
 
   // Estados de Sala y Jugadores
-  const [currentUser, setCurrentUser] = useState({ id: null, nombre: '', avatar: '', esHost: false, x: 0, y: 0, vida: 100, escudo: 50, arma_tipo: 'ninguna', arma_municion: 0, eliminado: false, bajas: 0 });
+  const [currentUser, setCurrentUser] = useState({ id: null, nombre: '', avatar: '', esHost: false, x: 50, y: 50, vida: 100, escudo: 50, arma_tipo: 'ninguna', arma_municion: 0, eliminado: false, bajas: 0 });
   const [room, setRoom] = useState(null);
   const [players, setPlayers] = useState([]);
   const [lootBoxes, setLootBoxes] = useState([]);
+  
+  // Posición continua en tiempo real del jugador local (0% a 100%)
+  const [localPos, setLocalPos] = useState({ x: 50, y: 50 });
 
   // Efectos Visuales Especiales (Láser y Alertas)
-  const [laserHits, setLaserHits] = useState([]); // Array de {x, y, color}
+  const [laserHits, setLaserHits] = useState([]); // Array de {x, y, direccion, color}
   const [stormWarning, setStormWarning] = useState(false);
   const [stormCountdown, setStormCountdown] = useState(15);
 
@@ -40,12 +43,15 @@ export default function App() {
   const [globalLeaderboard, setGlobalLeaderboard] = useState([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
 
-  // Referencias de Realtime
+  // Referencias de Realtime y Loop de Juego Continuo
   const roomSubRef = useRef(null);
   const playersSubRef = useRef(null);
   const lootSubRef = useRef(null);
   const stormIntervalRef = useRef(null);
   const movementCooldownRef = useRef(false);
+  const keysPressedRef = useRef({});
+  const gameLoopRef = useRef(null);
+  const lastSentPosRef = useRef({ x: 50, y: 50 });
 
   // ==========================================
   // ESCUCHA DE CANALES EN TIEMPO REAL
@@ -77,6 +83,15 @@ export default function App() {
         eliminado: yo.eliminado,
         bajas: yo.bajas
       }));
+
+      // Sincronizar localPos si hay una desviación grande (> 15% del tablero)
+      setLocalPos(prev => {
+        if (Math.hypot(prev.x - yo.x, prev.y - yo.y) > 15) {
+          lastSentPosRef.current = { x: yo.x, y: yo.y };
+          return { x: yo.x, y: yo.y };
+        }
+        return prev;
+      });
     }
   };
 
@@ -132,8 +147,8 @@ export default function App() {
         // Detectar si un oponente ha disparado para pintar el láser de color
         if (payload.eventType === 'UPDATE') {
           const jug = payload.new;
-          if (jug.id !== currentUser.id && jug.ultima_accion === 'shoot') {
-            // El oponente disparó
+          if (jug.id !== currentUser.id && jug.ultima_accion && jug.ultima_accion.startsWith('shoot_')) {
+            // El oponente disparó en una dirección continua 2D
             triggerOponenteLaser(jug);
           }
         }
@@ -197,59 +212,100 @@ export default function App() {
   }, [view, currentUser.esHost, room?.tormenta_radio]);
 
   // ==========================================
-  // SISTEMA DE CONTROLES DE TECLADO (MOVERSE Y DISPARAR)
+  // LOOP DE MOVIMIENTO CONTINUO (60 FPS) Y TECLADO
   // ==========================================
   useEffect(() => {
-    if (view !== 'game' || currentUser.eliminado) return;
+    if (view !== 'game' || currentUser.eliminado) {
+      if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
+      return;
+    }
 
     const handleKeyDown = (e) => {
-      // Evitar scroll de pantalla al jugar con las flechas
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
         e.preventDefault();
       }
+      keysPressedRef.current[e.key.toLowerCase()] = true;
 
-      // A. Controles de Movimiento (Flechas o WASD de dirección)
-      if (['ArrowUp', 'w', 'W'].includes(e.key)) handleMover('UP');
-      else if (['ArrowDown', 's', 'S'].includes(e.key)) handleMover('DOWN');
-      else if (['ArrowLeft', 'a', 'A'].includes(e.key)) handleMover('LEFT');
-      else if (['ArrowRight', 'd', 'D'].includes(e.key)) handleMover('RIGHT');
-
-      // B. Controles de Disparo (IJKL o teclado secundario para apuntar láser)
-      else if (['i', 'I'].includes(e.key)) handleDisparar('UP');
+      // Disparos directos independientes (presión única)
+      if (['i', 'I'].includes(e.key)) handleDisparar('UP');
       else if (['k', 'K'].includes(e.key)) handleDisparar('DOWN');
       else if (['j', 'J'].includes(e.key)) handleDisparar('LEFT');
       else if (['l', 'L'].includes(e.key)) handleDisparar('RIGHT');
     };
 
+    const handleKeyUp = (e) => {
+      keysPressedRef.current[e.key.toLowerCase()] = false;
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [view, currentUser.x, currentUser.y, currentUser.arma_tipo, currentUser.arma_municion, currentUser.eliminado]);
+    window.addEventListener('keyup', handleKeyUp);
 
-  // Cooldown de movimiento (0.35s) para evitar abusos y spam
-  const handleMover = async (dir) => {
-    if (movementCooldownRef.current || currentUser.eliminado) return;
+    // Loop a 60 FPS
+    const tick = () => {
+      let dx = 0;
+      let dy = 0;
+      const speed = 1.6; // velocidad de movimiento libre en % por frame
 
-    let targetX = currentUser.x;
-    let targetY = currentUser.y;
+      if (keysPressedRef.current['arrowup'] || keysPressedRef.current['w']) dy = -speed;
+      if (keysPressedRef.current['arrowdown'] || keysPressedRef.current['s']) dy = speed;
+      if (keysPressedRef.current['arrowleft'] || keysPressedRef.current['a']) dx = -speed;
+      if (keysPressedRef.current['arrowright'] || keysPressedRef.current['d']) dx = speed;
 
-    if (dir === 'UP') targetY = Math.max(0, currentUser.y - 1);
-    else if (dir === 'DOWN') targetY = Math.min(9, currentUser.y + 1);
-    else if (dir === 'LEFT') targetX = Math.max(0, currentUser.x - 1);
-    else if (dir === 'RIGHT') targetX = Math.min(9, currentUser.x + 1);
+      if (dx !== 0 || dy !== 0) {
+        setLocalPos(prev => {
+          const nextX = Math.max(3, Math.min(97, prev.x + dx));
+          const nextY = Math.max(3, Math.min(97, prev.y + dy));
+          return { x: nextX, y: nextY };
+        });
+      }
 
-    // Si no ha cambiado de casilla, salir
-    if (targetX === currentUser.x && targetY === currentUser.y) return;
+      gameLoopRef.current = requestAnimationFrame(tick);
+    };
 
-    movementCooldownRef.current = true;
-    setTimeout(() => {
-      movementCooldownRef.current = false;
-    }, 280);
+    gameLoopRef.current = requestAnimationFrame(tick);
 
-    try {
-      await moverJugador(currentUser.id, targetX, targetY, room.id);
-    } catch (err) {
-      console.error('Error al mover:', err);
-    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
+    };
+  }, [view, currentUser.eliminado, currentUser.arma_tipo, currentUser.arma_municion]);
+
+  // Sincronizador de coordenadas con la base de datos (Throttled a 90ms)
+  useEffect(() => {
+    if (view !== 'game' || currentUser.eliminado || !room?.id) return;
+
+    const interval = setInterval(async () => {
+      const dx = Math.abs(localPos.x - lastSentPosRef.current.x);
+      const dy = Math.abs(localPos.y - lastSentPosRef.current.y);
+
+      // Si ha habido algún movimiento significativo (ej. > 1% de recorrido)
+      if (dx > 0.8 || dy > 0.8) {
+        lastSentPosRef.current = { x: localPos.x, y: localPos.y };
+        try {
+          await moverJugador(currentUser.id, Math.round(localPos.x), Math.round(localPos.y), room.id);
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    }, 90);
+
+    return () => clearInterval(interval);
+  }, [view, localPos, currentUser.id, room?.id, currentUser.eliminado]);
+
+  // Mando táctil en pantalla (para móviles): incrementa posición suavemente
+  const handleMoverTáctil = (dir) => {
+    if (currentUser.eliminado) return;
+    const offset = 8; // salto discreto para toques en móvil
+    setLocalPos(prev => {
+      let nextX = prev.x;
+      let nextY = prev.y;
+      if (dir === 'UP') nextY = Math.max(3, prev.y - offset);
+      else if (dir === 'DOWN') nextY = Math.min(97, prev.y + offset);
+      else if (dir === 'LEFT') nextX = Math.max(3, prev.x - offset);
+      else if (dir === 'RIGHT') nextX = Math.min(97, prev.x + offset);
+      return { x: nextX, y: nextY };
+    });
   };
 
   const handleDisparar = async (direccion) => {
@@ -258,23 +314,23 @@ export default function App() {
     }
 
     try {
-      // Disparar y obtener la lista de celdas afectadas
-      const celdasAfectadas = await disparar(
+      // Disparar en la dirección apuntada desde nuestra localPos actual
+      await disparar(
         currentUser.id,
         room.id,
-        currentUser.x,
-        currentUser.y,
+        Math.round(localPos.x),
+        Math.round(localPos.y),
         direccion,
         currentUser.arma_tipo,
         currentUser.bajas
       );
 
       // Pintar el rayo láser de color cyan para mí
-      if (celdasAfectadas && celdasAfectadas.length > 0) {
-        const hits = celdasAfectadas.map(c => ({ x: c.x, y: c.y, color: 'cyan' }));
-        setLaserHits(hits);
-        setTimeout(() => setLaserHits([]), 400);
-      }
+      setLaserHits(prev => [...prev, { x: localPos.x, y: localPos.y, direccion, color: 'cyan' }]);
+      setTimeout(() => {
+        setLaserHits(prev => prev.filter(l => !(l.x === localPos.x && l.y === localPos.y && l.direccion === direccion)));
+      }, 400);
+
     } catch (err) {
       console.error('Error al disparar:', err);
     }
@@ -282,20 +338,15 @@ export default function App() {
 
   // Pintar el rayo láser rojo de un enemigo
   const triggerOponenteLaser = (oponente) => {
-    const { x, y, arma_tipo } = oponente;
-    // La dirección del disparo se puede aproximar o rastrear, pero la calculamos
-    // o simplemente flasheamos el entorno de su disparo
-    let celdas = [];
-    // Flasheo simple alrededor del oponente para denotar su disparo
-    for (let i = -2; i <= 2; i++) {
-      if (i !== 0) {
-        celdas.push({ x: x + i, y, color: 'pink' });
-        celdas.push({ x, y: y + i, color: 'pink' });
-      }
+    const { x, y, ultima_accion } = oponente;
+    const parts = ultima_accion.split('_');
+    const dir = parts[1]; // 'UP', 'DOWN', 'LEFT', 'RIGHT'
+    if (dir) {
+      setLaserHits(prev => [...prev, { x, y, direccion: dir, color: 'pink' }]);
+      setTimeout(() => {
+        setLaserHits(prev => prev.filter(l => !(l.x === x && l.y === y && l.direccion === dir)));
+      }, 400);
     }
-    const hitsFiltrados = celdas.filter(c => c.x >= 0 && c.x < 10 && c.y >= 0 && c.y < 10);
-    setLaserHits(hitsFiltrados);
-    setTimeout(() => setLaserHits([]), 400);
   };
 
   // ==========================================
@@ -316,8 +367,8 @@ export default function App() {
         nombre: nombre,
         avatar: avatar,
         esHost: true,
-        x: 0,
-        y: 0,
+        x: hostJugador.x,
+        y: hostJugador.y,
         vida: 100,
         escudo: 50,
         arma_tipo: 'ninguna',
@@ -325,13 +376,16 @@ export default function App() {
         eliminado: false,
         bajas: 0
       });
+      setLocalPos({ x: hostJugador.x, y: hostJugador.y });
+      lastSentPosRef.current = { x: hostJugador.x, y: hostJugador.y };
+      
       setRoom({
         id: salaId,
         host_name: nombre,
         estado: 'lobby',
         tormenta_radio: 10,
-        tormenta_centro_x: 4,
-        tormenta_centro_y: 4
+        tormenta_centro_x: 50,
+        tormenta_centro_y: 50
       });
       setView('lobby');
     } catch (err) {
@@ -369,6 +423,8 @@ export default function App() {
         eliminado: false,
         bajas: 0
       });
+      setLocalPos({ x: jugador.x, y: jugador.y });
+      lastSentPosRef.current = { x: jugador.x, y: jugador.y };
       setRoom(sala);
       setView('lobby');
     } catch (err) {
@@ -425,58 +481,7 @@ export default function App() {
     return superviviente || players[0];
   };
 
-  // Renderizar cada celda del tablero
-  const renderTablero = () => {
-    const celdas = [];
-    const centroX = 4;
-    const centroY = 4;
 
-    for (let y = 0; y < 10; y++) {
-      for (let x = 0; x < 10; x++) {
-        // A. Comprobar si la celda está fuera del radio de la tormenta
-        const dx = Math.abs(x - centroX);
-        const dy = Math.abs(y - centroY);
-        const dist = Math.max(dx, dy);
-        const estaEnTormenta = room ? dist > room.tormenta_radio : false;
-
-        // B. Comprobar si hay un jugador en la celda
-        const jugadorEnCelda = players.find(p => p.x === x && p.y === y && !p.eliminado);
-
-        // C. Comprobar si hay botín en la celda
-        const cajaEnCelda = lootBoxes.find(c => c.x === x && c.y === y);
-
-        // D. Comprobar si tiene flash de impacto láser
-        const hitInfo = laserHits.find(h => h.x === x && h.y === y);
-        let flashClass = '';
-        if (hitInfo) {
-          flashClass = hitInfo.color === 'cyan' ? 'laser-hit-cyan' : 'laser-hit-pink';
-        }
-
-        celdas.push(
-          <div
-            key={`${x}-${y}`}
-            className={`grid-cell ${estaEnTormenta ? 'storm-zone' : ''} ${flashClass}`}
-          >
-            {jugadorEnCelda && (
-              <span className={`entity entity-player ${jugadorEnCelda.id === currentUser.id ? 'me' : ''}`}>
-                {jugadorEnCelda.avatar}
-              </span>
-            )}
-            {!jugadorEnCelda && cajaEnCelda && (
-              <span className="entity entity-loot">
-                {cajaEnCelda.tipo === 'botiquin' && '❤️'}
-                {cajaEnCelda.tipo === 'escudo' && '🛡️'}
-                {cajaEnCelda.tipo === 'pistola' && '🔫'}
-                {cajaEnCelda.tipo === 'escopeta' && '🔥'}
-                {cajaEnCelda.tipo === 'sniper' && '⚡'}
-              </span>
-            )}
-          </div>
-        );
-      }
-    }
-    return celdas;
-  };
 
   return (
     <div id="app-container">
@@ -677,9 +682,81 @@ export default function App() {
                 )}
               </div>
 
-              {/* El Tablero 10x10 */}
-              <div className="arena-grid">
-                {renderTablero()}
+              {/* El Tablero 2D Continuo */}
+              <div className="arena-arena-2d">
+                {/* 1. Superposición de la Tormenta de Datos */}
+                {room && (
+                  <div 
+                    className="storm-safe-zone-overlay" 
+                    style={{
+                      width: `${room.tormenta_radio * 10.0}%`,
+                      height: `${room.tormenta_radio * 10.0}%`
+                    }}
+                  />
+                )}
+
+                {/* 2. Cajas de Loot */}
+                {lootBoxes.filter(c => !c.recogida).map(c => {
+                  let icon = '📦';
+                  if (c.tipo === 'botiquin') icon = '❤️';
+                  else if (c.tipo === 'escudo') icon = '🛡️';
+                  else if (c.tipo === 'pistola') icon = '🔫';
+                  else if (c.tipo === 'escopeta') icon = '🔥';
+                  else if (c.tipo === 'sniper') icon = '⚡';
+                  
+                  return (
+                    <div 
+                      key={c.id} 
+                      className="entity-loot-2d" 
+                      style={{ left: `${c.x}%`, top: `${c.y}%` }}
+                    >
+                      {icon}
+                    </div>
+                  );
+                })}
+
+                {/* 3. Jugadores */}
+                {players.map(p => {
+                  const isMe = p.id === currentUser.id;
+                  const pos = isMe ? localPos : { x: p.x, y: p.y };
+
+                  if (p.eliminado) return null;
+
+                  return (
+                    <div
+                      key={p.id}
+                      className={`entity-player-2d ${isMe ? 'me' : ''}`}
+                      style={{
+                        left: `${pos.x}%`,
+                        top: `${pos.y}%`
+                      }}
+                      title={p.nombre}
+                    >
+                      {p.avatar}
+                    </div>
+                  );
+                })}
+
+                {/* 4. Efectos de Láseres en 2D */}
+                {laserHits.map((h, index) => {
+                  let style = {};
+                  if (h.direccion === 'UP') {
+                    style = { left: `${h.x}%`, top: `${h.y / 2.0}%`, width: '4px', height: `${h.y}%` };
+                  } else if (h.direccion === 'DOWN') {
+                    style = { left: `${h.x}%`, top: `${(100.0 + h.y) / 2.0}%`, width: '4px', height: `${100.0 - h.y}%` };
+                  } else if (h.direccion === 'LEFT') {
+                    style = { left: `${h.x / 2.0}%`, top: `${h.y}%`, width: `${h.x}%`, height: '4px' };
+                  } else if (h.direccion === 'RIGHT') {
+                    style = { left: `${(100.0 + h.x) / 2.0}%`, top: `${h.y}%`, width: `${100.0 - h.x}%`, height: '4px' };
+                  }
+                  return (
+                    <div
+                      key={index}
+                      className={`laser-line-2d ${h.color === 'pink' ? 'opponent' : ''}`}
+                      style={style}
+                    />
+                  );
+                })}
               </div>
 
               {/* Consola de Control de Estadísticas e Instrucciones */}
@@ -709,7 +786,7 @@ export default function App() {
 
                   {/* Instrucciones Rápidas */}
                   <div style={{ fontSize: '0.8rem', color: '#8c8c9e', marginTop: '0.25rem' }}>
-                    💻 <strong>PC:</strong> Flechas/WASD para Moverse. Teclas <strong>IJKL</strong> para Disparar (Arriba, Izq, Abajo, Der).
+                    💻 <strong>PC:</strong> Usa <strong>W, A, S, D</strong> o las <strong>Flechas</strong> para moverte libremente. Apunta y dispara láseres con <strong>I, J, K, L</strong>.
                   </div>
                 </div>
 
@@ -725,12 +802,12 @@ export default function App() {
 
               {/* Controles táctiles en pantalla para móviles */}
               <div className="on-screen-controls">
-                {/* D-Pad de Movimiento */}
+                {/* D-Pad de Movimiento Continuo */}
                 <div className="d-pad">
-                  <button className="d-btn d-up" onClick={() => handleMover('UP')}>▲</button>
-                  <button className="d-btn d-left" onClick={() => handleMover('LEFT')}>◀</button>
-                  <button className="d-btn d-right" onClick={() => handleMover('RIGHT')}>▶</button>
-                  <button className="d-btn d-down" onClick={() => handleMover('DOWN')}>▼</button>
+                  <button className="d-btn d-up" onClick={() => handleMoverTáctil('UP')}>▲</button>
+                  <button className="d-btn d-left" onClick={() => handleMoverTáctil('LEFT')}>◀</button>
+                  <button className="d-btn d-right" onClick={() => handleMoverTáctil('RIGHT')}>▶</button>
+                  <button className="d-btn d-down" onClick={() => handleMoverTáctil('DOWN')}>▼</button>
                 </div>
 
                 {/* Action Pad de Disparo */}

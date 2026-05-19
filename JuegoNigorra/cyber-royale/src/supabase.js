@@ -34,13 +34,13 @@ export async function crearSala(hostName, avatar = '👑') {
       host_name: hostName,
       estado: 'lobby',
       tormenta_radio: 10,
-      tormenta_centro_x: 4,
-      tormenta_centro_y: 4
+      tormenta_centro_x: 50,
+      tormenta_centro_y: 50
     });
 
   if (errorSala) throw errorSala;
 
-  // B. Crear el host en la cuadrícula (0,0)
+  // B. Crear el host en el centro (50, 50)
   const { data: hostJugador, error: errorHost } = await supabase
     .from('cr_jugadores')
     .insert({
@@ -48,8 +48,8 @@ export async function crearSala(hostName, avatar = '👑') {
       nombre: hostName,
       avatar: avatar,
       es_host: true,
-      x: 0,
-      y: 0,
+      x: 50,
+      y: 50,
       vida: 100,
       escudo: 50,
       arma_tipo: 'ninguna',
@@ -61,21 +61,16 @@ export async function crearSala(hostName, avatar = '👑') {
 
   if (errorHost) throw errorHost;
 
-  // C. Generar 18 cajas de botín aleatorias en el tablero (10x10)
-  // No spawnear botín en (0,0) ni (9,9) para evitar ventajas inmediatas
+  // C. Generar 20 cajas de botín aleatorias en el tablero 2D continuo (5% a 95%)
   const tiposCaja = ['pistola', 'escopeta', 'sniper', 'escudo', 'botiquin'];
   const cajas = [];
-  const coordsUsadas = new Set();
-  coordsUsadas.add('0,0');
-  coordsUsadas.add('9,9');
 
-  while (cajas.length < 18) {
-    const x = Math.floor(Math.random() * 10);
-    const y = Math.floor(Math.random() * 10);
-    const coordKey = `${x},${y}`;
-
-    if (!coordsUsadas.has(coordKey)) {
-      coordsUsadas.add(coordKey);
+  while (cajas.length < 20) {
+    const x = Math.floor(Math.random() * 86) + 7;
+    const y = Math.floor(Math.random() * 86) + 7;
+    // Evitar spawnear justo encima del centro para no dar ventaja al host
+    const distCentro = Math.hypot(x - 50, y - 50);
+    if (distCentro > 15) {
       const tipoRandom = tiposCaja[Math.floor(Math.random() * tiposCaja.length)];
       cajas.push({
         sala_id: salaId,
@@ -112,15 +107,16 @@ export async function unirseASala(codigoSala, playerName, avatar = '👾') {
   if (errorSala || !sala) throw new Error('La sala no existe o el código es incorrecto.');
   if (sala.estado !== 'lobby') throw new Error('La partida ya ha comenzado en esta sala.');
 
-  // B. Spawn aleatorio en las esquinas o bordes para jugadores
+  // B. Spawn aleatorio en los extremos del mapa 2D (porcentaje 5 a 95)
   const spawns = [
-    { x: 9, y: 9 },
-    { x: 0, y: 9 },
-    { x: 9, y: 0 },
-    { x: 0, y: 5 },
-    { x: 5, y: 9 },
-    { x: 9, y: 5 },
-    { x: 5, y: 0 }
+    { x: 10, y: 10 },
+    { x: 90, y: 90 },
+    { x: 10, y: 90 },
+    { x: 90, y: 10 },
+    { x: 50, y: 10 },
+    { x: 10, y: 50 },
+    { x: 90, y: 50 },
+    { x: 50, y: 90 }
   ];
   const spawnRandom = spawns[Math.floor(Math.random() * spawns.length)];
 
@@ -162,7 +158,7 @@ export async function iniciarPartida(salaId) {
 export async function moverJugador(jugadorId, x, y, salaId) {
   if (!supabase) return;
 
-  // A. Actualizar coordenadas del jugador
+  // A. Actualizar coordenadas continuas del jugador
   const { data: jugador, error } = await supabase
     .from('cr_jugadores')
     .update({
@@ -177,18 +173,18 @@ export async function moverJugador(jugadorId, x, y, salaId) {
 
   if (error) throw error;
 
-  // B. Comprobar si pisa una caja de botín recogida = false
-  const { data: caja } = await supabase
+  // B. Comprobar si pisa una caja de botín recogida = false (distancia < 5.5% del tablero)
+  const { data: cajas } = await supabase
     .from('cr_cajas')
     .select('*')
     .eq('sala_id', salaId)
-    .eq('x', x)
-    .eq('y', y)
-    .eq('recogida', false)
-    .maybeSingle();
+    .eq('recogida', false);
 
-  if (caja) {
-    await recogerBotin(jugador, caja);
+  if (cajas && cajas.length > 0) {
+    const cajaCercana = cajas.find(c => Math.hypot(c.x - x, c.y - y) < 6);
+    if (cajaCercana) {
+      await recogerBotin(jugador, cajaCercana);
+    }
   }
 
   return jugador;
@@ -214,13 +210,13 @@ async function recogerBotin(jugador, caja) {
     updates.escudo = Math.min(100, jugador.escudo + 50);
   } else if (caja.tipo === 'pistola') {
     updates.arma_tipo = 'pistola';
-    updates.arma_municion = 12;
+    updates.arma_municion = 15;
   } else if (caja.tipo === 'escopeta') {
     updates.arma_tipo = 'escopeta';
-    updates.arma_municion = 6;
+    updates.arma_municion = 8;
   } else if (caja.tipo === 'sniper') {
     updates.arma_tipo = 'sniper';
-    updates.arma_municion = 3;
+    updates.arma_municion = 4;
   }
 
   await supabase
@@ -229,7 +225,7 @@ async function recogerBotin(jugador, caja) {
     .eq('id', jugador.id);
 }
 
-// 6. Realizar Disparo en la Arena (Battle Royale)
+// 6. Realizar Disparo en la Arena 2D Libre
 export async function disparar(jugadorId, salaId, x, y, direccion, armaTipo, bajasActuales) {
   if (!supabase) return;
 
@@ -248,47 +244,25 @@ export async function disparar(jugadorId, salaId, x, y, direccion, armaTipo, baj
     .update({
       arma_tipo: nuevoTipo,
       arma_municion: nuevaMunicion,
-      ultima_accion: 'shoot',
+      ultima_accion: `shoot_${direccion}`,
       timestamp_accion: new Date().toISOString()
     })
     .eq('id', jugadorId);
 
-  // B. Calcular la zona o línea de impacto según la dirección y arma
-  let celdasAfectadas = []; // Array de {x, y}
-
-  if (armaTipo === 'pistola') {
-    // Rango 2 celdas en línea recta
-    for (let i = 1; i <= 2; i++) {
-      if (direccion === 'UP') celdasAfectadas.push({ x, y: y - i });
-      else if (direccion === 'DOWN') celdasAfectadas.push({ x, y: y + i });
-      else if (direccion === 'LEFT') celdasAfectadas.push({ x: x - i, y });
-      else if (direccion === 'RIGHT') celdasAfectadas.push({ x: x + i, y });
-    }
-  } else if (armaTipo === 'sniper') {
-    // Rango infinito en línea recta (toda la fila/columna)
-    for (let i = 1; i <= 10; i++) {
-      if (direccion === 'UP') celdasAfectadas.push({ x, y: y - i });
-      else if (direccion === 'DOWN') celdasAfectadas.push({ x, y: y + i });
-      else if (direccion === 'LEFT') celdasAfectadas.push({ x: x - i, y });
-      else if (direccion === 'RIGHT') celdasAfectadas.push({ x: x + i, y });
-    }
-  } else if (armaTipo === 'escopeta') {
-    // Cono de 1 celda enfrente y las diagonales
-    if (direccion === 'UP') {
-      celdasAfectadas.push({ x, y: y - 1 }, { x: x - 1, y: y - 1 }, { x: x + 1, y: y - 1 });
-    } else if (direccion === 'DOWN') {
-      celdasAfectadas.push({ x, y: y + 1 }, { x: x - 1, y: y + 1 }, { x: x + 1, y: y + 1 });
-    } else if (direccion === 'LEFT') {
-      celdasAfectadas.push({ x: x - 1, y }, { x: x - 1, y: y - 1 }, { x: x - 1, y: y + 1 });
-    } else if (direccion === 'RIGHT') {
-      celdasAfectadas.push({ x: x + 1, y }, { x: x + 1, y: y - 1 }, { x: x + 1, y: y + 1 });
-    }
+  // B. Generar coordenadas del rayo láser para pintarlo en la pantalla
+  let celdasAfectadas = []; // Array de {x, y} para graficar la línea de disparo
+  
+  if (direccion === 'UP') {
+    for (let i = 0; i <= y; i += 5) celdasAfectadas.push({ x, y: y - i });
+  } else if (direccion === 'DOWN') {
+    for (let i = 0; i <= (100 - y); i += 5) celdasAfectadas.push({ x, y: y + i });
+  } else if (direccion === 'LEFT') {
+    for (let i = 0; i <= x; i += 5) celdasAfectadas.push({ x: x - i, y });
+  } else if (direccion === 'RIGHT') {
+    for (let i = 0; i <= (100 - x); i += 5) celdasAfectadas.push({ x: x + i, y });
   }
 
-  // Filtrar coordenadas dentro del tablero 10x10
-  celdasAfectadas = celdasAfectadas.filter(c => c.x >= 0 && c.x < 10 && c.y >= 0 && c.y < 10);
-
-  // C. Consultar jugadores activos en la misma sala
+  // C. Consultar jugadores oponentes activos
   const { data: oponentes } = await supabase
     .from('cr_jugadores')
     .select('*')
@@ -298,18 +272,36 @@ export async function disparar(jugadorId, salaId, x, y, direccion, armaTipo, baj
 
   if (!oponentes || oponentes.length === 0) return celdasAfectadas;
 
-  // D. Comprobar quién está en las celdas afectadas y aplicar daño
+  // D. Comprobar colisiones de línea de disparo con oponentes
   let bajasHechas = 0;
-  const danioArma = { pistola: 30, escopeta: 55, sniper: 80 };
+  const danioArma = { pistola: 30, escopeta: 60, sniper: 80 };
   const damage = danioArma[armaTipo] || 0;
+  const margenColision = 8.0; // Radio de hit test del láser continuo en %
 
   for (const op of oponentes) {
-    const golpeado = celdasAfectadas.some(c => c.x === op.x && c.y === op.y);
+    let golpeado = false;
+
+    if (direccion === 'UP') {
+      golpeado = Math.abs(op.x - x) < margenColision && op.y < y;
+    } else if (direccion === 'DOWN') {
+      golpeado = Math.abs(op.x - x) < margenColision && op.y > y;
+    } else if (direccion === 'LEFT') {
+      golpeado = Math.abs(op.y - y) < margenColision && op.x < x;
+    } else if (direccion === 'RIGHT') {
+      golpeado = Math.abs(op.y - y) < margenColision && op.x > x;
+    }
+
+    // Limitación de rango corto para la Escopeta (máximo 30% del mapa)
+    if (armaTipo === 'escopeta' && golpeado) {
+      const distancia = Math.hypot(op.x - x, op.y - y);
+      if (distancia > 30) golpeado = false;
+    }
+
     if (golpeado) {
       let vidaRestante = op.vida;
       let escudoRestante = op.escudo;
 
-      // Restar primero del escudo
+      // Aplicar daño primero al escudo
       if (escudoRestante >= damage) {
         escudoRestante -= damage;
       } else {
@@ -336,7 +328,7 @@ export async function disparar(jugadorId, salaId, x, y, direccion, armaTipo, baj
     }
   }
 
-  // Si hubo bajas, actualizar contador del atacante
+  // Actualizar bajas si hubo
   if (bajasHechas > 0) {
     const totalBajas = bajasActuales + bajasHechas;
     await supabase
@@ -345,7 +337,7 @@ export async function disparar(jugadorId, salaId, x, y, direccion, armaTipo, baj
       .eq('id', jugadorId);
   }
 
-  // E. Comprobar si queda solo 1 jugador en la sala para declarar victoria
+  // Comprobar ganador
   await chequearGanador(salaId);
 
   return celdasAfectadas;
@@ -374,7 +366,7 @@ export async function chequearGanador(salaId) {
   }
 }
 
-// 8. Contraer la Tormenta (Battle Royale)
+// 8. Contraer la Tormenta (Battle Royale Continuo)
 export async function contraerTormenta(salaId, radioActual) {
   if (!supabase) return;
 
@@ -395,19 +387,21 @@ export async function contraerTormenta(salaId, radioActual) {
 
   if (!vivos) return;
 
-  // Centro seguro fijo en (4, 4)
-  const centroX = 4;
-  const centroY = 4;
+  // Centro seguro en coordenadas (50, 50)
+  const centroX = 50;
+  const centroY = 50;
+  // Convertimos el radio de la tormenta (10 a 0) en un radio de porcentaje (50% a 0%)
+  const radioPorcentaje = nuevoRadio * 5.0;
 
   for (const j of vivos) {
-    // Distancia de Chebyshev en rejilla rectangular
+    // Distancia Chebyshev en la cuadrícula de porcentajes
     const dx = Math.abs(j.x - centroX);
     const dy = Math.abs(j.y - centroY);
     const distancia = Math.max(dx, dy);
 
-    // Si está fuera de la zona segura (distancia > radio), recibe daño de tormenta
-    if (distancia > nuevoRadio) {
-      let vidaRestante = Math.max(0, j.vida - 30);
+    // Si está fuera de la zona segura, recibe daño masivo
+    if (distancia > radioPorcentaje) {
+      let vidaRestante = Math.max(0, j.vida - 25);
       const muerto = vidaRestante <= 0;
 
       await supabase
@@ -424,6 +418,7 @@ export async function contraerTormenta(salaId, radioActual) {
   // Comprobar si queda ganador tras tormenta
   await chequearGanador(salaId);
 }
+
 
 // 9. Abandonar Sala / Desconexión
 export async function abandonarSala(jugadorId) {
