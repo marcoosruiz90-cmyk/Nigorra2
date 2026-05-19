@@ -347,6 +347,18 @@ export async function disparar(jugadorId, salaId, x, y, direccion, armaTipo, baj
 export async function chequearGanador(salaId) {
   if (!supabase) return;
 
+  // A. Obtener todos los jugadores registrados en esta sala
+  const { data: todos } = await supabase
+    .from('cr_jugadores')
+    .select('id')
+    .eq('sala_id', salaId);
+
+  // Si solo hay 1 jugador en total, es modo prueba/sandbox. No terminar partida.
+  if (todos && todos.length <= 1) {
+    return;
+  }
+
+  // B. Si hay múltiples jugadores, ver cuántos quedan vivos
   const { data: vivos } = await supabase
     .from('cr_jugadores')
     .select('*')
