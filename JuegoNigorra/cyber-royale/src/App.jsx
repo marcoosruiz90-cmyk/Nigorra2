@@ -355,7 +355,7 @@ export default function App() {
 
       let dx = 0;
       let dy = 0;
-      const speed = 1.6; // velocidad de movimiento libre en % por frame
+      const speed = 0.42; // velocidad de movimiento libre en % por frame (más táctico y controlable)
 
       if (keysPressedRef.current['arrowup'] || keysPressedRef.current['w']) dy = -speed;
       if (keysPressedRef.current['arrowdown'] || keysPressedRef.current['s']) dy = speed;
@@ -417,7 +417,7 @@ export default function App() {
   // Mando táctil en pantalla (para móviles): incrementa posición suavemente
   const handleMoverTáctil = (dir) => {
     if (currentUserRef.current.eliminado) return;
-    const offset = 8; // salto discreto para toques en móvil
+    const offset = 2.5; // salto discreto para toques en móvil (proporcional al nuevo ritmo lento)
     setLocalPos(prev => {
       let nextX = prev.x;
       let nextY = prev.y;
