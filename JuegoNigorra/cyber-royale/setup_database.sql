@@ -75,3 +75,10 @@ commit;
 alter publication cr_realtime add table public.cr_salas;
 alter publication cr_realtime add table public.cr_jugadores;
 alter publication cr_realtime add table public.cr_cajas;
+
+-- Desactivar políticas de RLS para permitir accesos públicos sin restricciones en el juego
+ALTER TABLE public.cr_salas DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cr_jugadores DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cr_cajas DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cr_leaderboard DISABLE ROW LEVEL SECURITY;
+
