@@ -53,6 +53,23 @@ export default function App() {
   const gameLoopRef = useRef(null);
   const lastSentPosRef = useRef({ x: 50, y: 50 });
 
+  // Referencias optimizadas para evitar stutters de Garbage Collection y re-renderizados
+  const currentUserRef = useRef(currentUser);
+  const localPosRef = useRef(localPos);
+  const roomRef = useRef(room);
+
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  useEffect(() => {
+    localPosRef.current = localPos;
+  }, [localPos]);
+
+  useEffect(() => {
+    roomRef.current = room;
+  }, [room]);
+
   // ==========================================
   // ESCUCHA DE CANALES EN TIEMPO REAL
   // ==========================================
@@ -69,22 +86,32 @@ export default function App() {
     const listado = data || [];
     setPlayers(listado);
 
-    // Sincronizar mis propias estadísticas locales en vivo desde la BD
-    const yo = listado.find(p => p.id === currentUser.id);
+    const yo = listado.find(p => p.id === currentUserRef.current.id);
     if (yo) {
-      setCurrentUser(prev => ({
-        ...prev,
-        x: yo.x,
-        y: yo.y,
-        vida: yo.vida,
-        escudo: yo.escudo,
-        arma_tipo: yo.arma_tipo,
-        arma_municion: yo.arma_municion,
-        eliminado: yo.eliminado,
-        bajas: yo.bajas
-      }));
+      setCurrentUser(prev => {
+        if (
+          prev.vida === yo.vida &&
+          prev.escudo === yo.escudo &&
+          prev.arma_tipo === yo.arma_tipo &&
+          prev.arma_municion === yo.arma_municion &&
+          prev.eliminado === yo.eliminado &&
+          prev.bajas === yo.bajas
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          x: yo.x,
+          y: yo.y,
+          vida: yo.vida,
+          escudo: yo.escudo,
+          arma_tipo: yo.arma_tipo,
+          arma_municion: yo.arma_municion,
+          eliminado: yo.eliminado,
+          bajas: yo.bajas
+        };
+      });
 
-      // Sincronizar localPos si hay una desviación grande (> 15% del tablero)
       setLocalPos(prev => {
         if (Math.hypot(prev.x - yo.x, prev.y - yo.y) > 15) {
           lastSentPosRef.current = { x: yo.x, y: yo.y };
@@ -142,13 +169,61 @@ export default function App() {
         table: 'cr_jugadores',
         filter: `sala_id=eq.${salaId}`
       }, (payload) => {
-        refrescarJugadores(salaId);
+        const { eventType, new: newJug, old: oldJug } = payload;
+        
+        setPlayers(prev => {
+          if (eventType === 'INSERT') {
+            if (prev.some(p => p.id === newJug.id)) return prev;
+            return [...prev, newJug];
+          }
+          if (eventType === 'UPDATE') {
+            const actualizados = prev.map(p => p.id === newJug.id ? newJug : p);
+            
+            // Sincronizar mis propias estadísticas
+            if (newJug.id === currentUserRef.current.id) {
+              setCurrentUser(prevUser => {
+                if (
+                  prevUser.vida === newJug.vida &&
+                  prevUser.escudo === newJug.escudo &&
+                  prevUser.arma_tipo === newJug.arma_tipo &&
+                  prevUser.arma_municion === newJug.arma_municion &&
+                  prevUser.eliminado === newJug.eliminado &&
+                  prevUser.bajas === newJug.bajas
+                ) {
+                  return prevUser;
+                }
+                return {
+                  ...prevUser,
+                  vida: newJug.vida,
+                  escudo: newJug.escudo,
+                  arma_tipo: newJug.arma_tipo,
+                  arma_municion: newJug.arma_municion,
+                  eliminado: newJug.eliminado,
+                  bajas: newJug.bajas
+                };
+              });
+
+              setLocalPos(prevPos => {
+                if (Math.hypot(prevPos.x - newJug.x, prevPos.y - newJug.y) > 15) {
+                  lastSentPosRef.current = { x: newJug.x, y: newJug.y };
+                  return { x: newJug.x, y: newJug.y };
+                }
+                return prevPos;
+              });
+            }
+
+            return actualizados;
+          }
+          if (eventType === 'DELETE') {
+            return prev.filter(p => p.id === oldJug.id);
+          }
+          return prev;
+        });
 
         // Detectar si un oponente ha disparado para pintar el láser de color
-        if (payload.eventType === 'UPDATE') {
+        if (eventType === 'UPDATE') {
           const jug = payload.new;
-          if (jug.id !== currentUser.id && jug.ultima_accion && jug.ultima_accion.startsWith('shoot_')) {
-            // El oponente disparó en una dirección continua 2D
+          if (jug.id !== currentUserRef.current.id && jug.ultima_accion && jug.ultima_accion.startsWith('shoot_')) {
             triggerOponenteLaser(jug);
           }
         }
@@ -163,8 +238,21 @@ export default function App() {
         schema: 'public',
         table: 'cr_cajas',
         filter: `sala_id=eq.${salaId}`
-      }, () => {
-        refrescarBotin(salaId);
+      }, (payload) => {
+        const { eventType, new: newCaja } = payload;
+        if (eventType === 'UPDATE') {
+          setLootBoxes(prev => {
+            if (newCaja.recogida) {
+              return prev.filter(c => c.id !== newCaja.id);
+            }
+            return prev.map(c => c.id === newCaja.id ? newCaja : c);
+          });
+        } else if (eventType === 'INSERT') {
+          setLootBoxes(prev => {
+            if (prev.some(c => c.id === newCaja.id)) return prev;
+            return [...prev, newCaja];
+          });
+        }
       })
       .subscribe();
 
@@ -175,7 +263,7 @@ export default function App() {
     return () => {
       desuscribirCanales();
     };
-  }, [room?.id, currentUser.id, view]);
+  }, [room?.id, view]);
 
   const desuscribirCanales = () => {
     if (roomSubRef.current) roomSubRef.current.unsubscribe();
@@ -215,12 +303,15 @@ export default function App() {
   // LOOP DE MOVIMIENTO CONTINUO (60 FPS) Y TECLADO
   // ==========================================
   useEffect(() => {
-    if (view !== 'game' || currentUser.eliminado) {
+    if (view !== 'game') {
       if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
       return;
     }
 
     const handleKeyDown = (e) => {
+      // Si el jugador está eliminado, no procesar controles de juego
+      if (currentUserRef.current.eliminado) return;
+
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
         e.preventDefault();
       }
@@ -242,6 +333,11 @@ export default function App() {
 
     // Loop a 60 FPS
     const tick = () => {
+      if (currentUserRef.current.eliminado) {
+        gameLoopRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
       let dx = 0;
       let dy = 0;
       const speed = 1.6; // velocidad de movimiento libre en % por frame
@@ -269,21 +365,27 @@ export default function App() {
       window.removeEventListener('keyup', handleKeyUp);
       if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
     };
-  }, [view, currentUser.eliminado, currentUser.arma_tipo, currentUser.arma_municion]);
+  }, [view]);
 
   // Sincronizador de coordenadas con la base de datos (Throttled a 90ms)
   useEffect(() => {
-    if (view !== 'game' || currentUser.eliminado || !room?.id) return;
+    if (view !== 'game') return;
 
     const interval = setInterval(async () => {
-      const dx = Math.abs(localPos.x - lastSentPosRef.current.x);
-      const dy = Math.abs(localPos.y - lastSentPosRef.current.y);
+      const cur = currentUserRef.current;
+      const rm = roomRef.current;
+      const lp = localPosRef.current;
 
-      // Si ha habido algún movimiento significativo (ej. > 1% de recorrido)
+      if (cur.eliminado || !rm?.id) return;
+
+      const dx = Math.abs(lp.x - lastSentPosRef.current.x);
+      const dy = Math.abs(lp.y - lastSentPosRef.current.y);
+
+      // Si ha habido algún movimiento significativo (ej. > 0.8% de recorrido)
       if (dx > 0.8 || dy > 0.8) {
-        lastSentPosRef.current = { x: localPos.x, y: localPos.y };
+        lastSentPosRef.current = { x: lp.x, y: lp.y };
         try {
-          await moverJugador(currentUser.id, Math.round(localPos.x), Math.round(localPos.y), room.id);
+          await moverJugador(cur.id, Math.round(lp.x), Math.round(lp.y), rm.id);
         } catch (err) {
           console.error(err);
         }
@@ -291,11 +393,11 @@ export default function App() {
     }, 90);
 
     return () => clearInterval(interval);
-  }, [view, localPos, currentUser.id, room?.id, currentUser.eliminado]);
+  }, [view]);
 
   // Mando táctil en pantalla (para móviles): incrementa posición suavemente
   const handleMoverTáctil = (dir) => {
-    if (currentUser.eliminado) return;
+    if (currentUserRef.current.eliminado) return;
     const offset = 8; // salto discreto para toques en móvil
     setLocalPos(prev => {
       let nextX = prev.x;
@@ -309,26 +411,30 @@ export default function App() {
   };
 
   const handleDisparar = async (direccion) => {
-    if (currentUser.arma_tipo === 'ninguna' || currentUser.arma_municion <= 0 || currentUser.eliminado) {
+    const cur = currentUserRef.current;
+    const rm = roomRef.current;
+    const lp = localPosRef.current;
+
+    if (cur.arma_tipo === 'ninguna' || cur.arma_municion <= 0 || cur.eliminado) {
       return;
     }
 
     try {
       // Disparar en la dirección apuntada desde nuestra localPos actual
       await disparar(
-        currentUser.id,
-        room.id,
-        Math.round(localPos.x),
-        Math.round(localPos.y),
+        cur.id,
+        rm.id,
+        Math.round(lp.x),
+        Math.round(lp.y),
         direccion,
-        currentUser.arma_tipo,
-        currentUser.bajas
+        cur.arma_tipo,
+        cur.bajas
       );
 
       // Pintar el rayo láser de color cyan para mí
-      setLaserHits(prev => [...prev, { x: localPos.x, y: localPos.y, direccion, color: 'cyan' }]);
+      setLaserHits(prev => [...prev, { x: lp.x, y: lp.y, direccion, color: 'cyan' }]);
       setTimeout(() => {
-        setLaserHits(prev => prev.filter(l => !(l.x === localPos.x && l.y === localPos.y && l.direccion === direccion)));
+        setLaserHits(prev => prev.filter(l => !(l.x === lp.x && l.y === lp.y && l.direccion === direccion)));
       }, 400);
 
     } catch (err) {
