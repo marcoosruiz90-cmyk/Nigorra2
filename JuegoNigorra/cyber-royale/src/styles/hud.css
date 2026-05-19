@@ -1,0 +1,297 @@
+/* ==========================================
+   CSS DEL HUD - CYBER ROYALE
+   Overlays, Tarjetas de Estadísticas y Minimapa
+   ========================================== */
+
+/* Contenedores fijos del HUD */
+.hud-top-left {
+  position: fixed;
+  top: 1.5rem;
+  left: 1.5rem;
+  z-index: 100;
+}
+
+.hud-top-right {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.hud-bottom-left {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 1.5rem;
+  z-index: 100;
+}
+
+.hud-bottom-right {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 100;
+}
+
+/* Tarjeta del Nombre (Arriba Izquierda) */
+.hud-player-badge {
+  background: rgba(10, 10, 18, 0.75);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  padding: 0.75rem 1.25rem;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  border-left: 3px solid var(--neon-cyan);
+}
+
+.hud-avatar {
+  font-size: 1.5rem;
+}
+
+.hud-name {
+  font-family: var(--font-title);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.5px;
+}
+
+/* Tarjeta del Arma (Abajo Izquierda) */
+.hud-weapon-card {
+  background: rgba(10, 10, 18, 0.75);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  padding: 0.85rem 1.5rem;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  border-left: 3px solid var(--neon-yellow);
+}
+
+.hud-weapon-icon {
+  font-size: 2.8rem;
+  filter: drop-shadow(0 0 10px var(--neon-yellow));
+  animation: floatWeapon 3s ease-in-out infinite;
+}
+
+@keyframes floatWeapon {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.hud-weapon-details {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.hud-weapon-label {
+  font-size: 0.65rem;
+  color: #8c8c9e;
+  font-family: var(--font-title);
+  letter-spacing: 1.5px;
+  font-weight: 700;
+}
+
+.hud-weapon-name {
+  font-size: 1.4rem;
+  font-family: var(--font-title);
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+
+.hud-weapon-ammo {
+  font-size: 1rem;
+  font-family: var(--font-title);
+  font-weight: 700;
+  color: var(--neon-yellow);
+  text-shadow: 0 0 8px rgba(255, 214, 0, 0.4);
+}
+
+/* Tarjeta de Vida y Escudo (Abajo Derecha) */
+.hud-stats-card {
+  background: rgba(10, 10, 18, 0.75);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  padding: 1.25rem 1.75rem;
+  border-radius: 16px;
+  width: 320px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  border-right: 3px solid var(--neon-pink);
+}
+
+.hud-stat-bar-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.hud-stat-bar-header {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-title);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.hud-bar-vida {
+  color: var(--neon-pink);
+  text-shadow: 0 0 5px rgba(255, 0, 85, 0.3);
+}
+
+.hud-bar-escudo {
+  color: var(--neon-cyan);
+  text-shadow: 0 0 5px rgba(0, 243, 255, 0.3);
+}
+
+.hud-progress-bar-bg {
+  width: 100%;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 50px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.hud-progress-bar-fill {
+  height: 100%;
+  border-radius: 50px;
+  transition: width 0.2s ease;
+}
+
+/* Minimapa (Arriba Derecha) */
+.hud-minimap {
+  width: 140px;
+  height: 140px;
+  background: rgba(5, 5, 10, 0.85);
+  border: 2px solid var(--neon-cyan);
+  box-shadow: 0 0 20px rgba(0, 243, 255, 0.35), inset 0 0 15px rgba(0, 243, 255, 0.1);
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.minimap-player-dot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--neon-pink);
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  box-shadow: 0 0 6px var(--neon-pink);
+  /* Transición ultra corta para suavizado de posiciones */
+  transition: left 0.08s linear, top 0.08s linear;
+}
+
+.minimap-player-dot.me {
+  background: var(--neon-cyan);
+  width: 9px;
+  height: 9px;
+  box-shadow: 0 0 10px var(--neon-cyan);
+  z-index: 10;
+  border: 1px solid #fff;
+  transition: none !important; /* Cero retardo en minimapa local */
+}
+
+.minimap-loot-dot {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--neon-yellow);
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  box-shadow: 0 0 4px var(--neon-yellow);
+}
+
+.minimap-storm-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 1.5px dashed var(--neon-pink);
+  border-radius: 8px;
+  box-shadow: 0 0 0 500px rgba(255, 0, 85, 0.25);
+  pointer-events: none;
+  z-index: 2;
+  transition: width 0.3s ease, height 0.3s ease;
+}
+
+/* Badge de Kills */
+.hud-kills-badge {
+  background: rgba(10, 10, 18, 0.75);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  padding: 0.55rem 1.25rem;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-title);
+  font-weight: 900;
+  font-size: 0.85rem;
+  color: #fff;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  border-left: 3px solid var(--neon-pink);
+}
+
+.hud-kills-badge .kills-icon {
+  font-size: 1.1rem;
+  filter: drop-shadow(0 0 4px var(--neon-pink));
+}
+
+/* Botón de Salir */
+.hud-exit-btn {
+  background: rgba(255, 0, 85, 0.15);
+  border: 1px solid rgba(255, 0, 85, 0.5);
+  color: #fff;
+  padding: 0.55rem 1.25rem;
+  border-radius: 12px;
+  font-family: var(--font-title);
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 15px rgba(255, 0, 85, 0.1);
+  backdrop-filter: blur(8px);
+  letter-spacing: 0.5px;
+}
+
+.hud-exit-btn:hover {
+  background: var(--neon-pink);
+  border-color: var(--neon-pink);
+  box-shadow: 0 0 20px var(--neon-pink);
+  transform: translateY(-2px);
+}
+
+/* Banner de Espectador */
+.hud-spectator-banner {
+  position: fixed;
+  top: 5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 214, 0, 0.15);
+  border: 1px solid var(--neon-yellow);
+  color: var(--neon-yellow);
+  padding: 0.5rem 1.5rem;
+  border-radius: 30px;
+  font-family: var(--font-title);
+  font-size: 0.8rem;
+  font-weight: bold;
+  letter-spacing: 1px;
+  z-index: 10;
+  box-shadow: 0 0 15px rgba(255, 214, 0, 0.2);
+  backdrop-filter: blur(8px);
+}

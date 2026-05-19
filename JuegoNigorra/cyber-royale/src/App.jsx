@@ -73,6 +73,12 @@ export default function App() {
   const localPosRef = useRef(localPos);
   const roomRef = useRef(room);
 
+  const playersRef = useRef([]);
+
+  useEffect(() => {
+    playersRef.current = players;
+  }, [players]);
+
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
@@ -186,54 +192,82 @@ export default function App() {
       }, (payload) => {
         const { eventType, new: newJug, old: oldJug } = payload;
         
-        setPlayers(prev => {
-          if (eventType === 'INSERT') {
+        if (eventType === 'INSERT') {
+          setPlayers(prev => {
             if (prev.some(p => p.id === newJug.id)) return prev;
             return [...prev, newJug];
-          }
-          if (eventType === 'UPDATE') {
-            const actualizados = prev.map(p => p.id === newJug.id ? newJug : p);
-            
-            // Sincronizar mis propias estadísticas
-            if (newJug.id === currentUserRef.current.id) {
-              setCurrentUser(prevUser => {
-                if (
-                  prevUser.vida === newJug.vida &&
-                  prevUser.escudo === newJug.escudo &&
-                  prevUser.arma_tipo === newJug.arma_tipo &&
-                  prevUser.arma_municion === newJug.arma_municion &&
-                  prevUser.eliminado === newJug.eliminado &&
-                  prevUser.bajas === newJug.bajas
-                ) {
-                  return prevUser;
-                }
-                return {
-                  ...prevUser,
-                  vida: newJug.vida,
-                  escudo: newJug.escudo,
-                  arma_tipo: newJug.arma_tipo,
-                  arma_municion: newJug.arma_municion,
-                  eliminado: newJug.eliminado,
-                  bajas: newJug.bajas
-                };
-              });
+          });
+        } else if (eventType === 'UPDATE') {
+          // Buscar al jugador anterior en la referencia mutable para comparar estadísticas
+          const oldJug = playersRef.current.find(p => p.id === newJug.id);
+          
+          const statsChanged = !oldJug ||
+            oldJug.nombre !== newJug.nombre ||
+            oldJug.avatar !== newJug.avatar ||
+            oldJug.vida !== newJug.vida ||
+            oldJug.escudo !== newJug.escudo ||
+            oldJug.arma_tipo !== newJug.arma_tipo ||
+            oldJug.arma_municion !== newJug.arma_municion ||
+            oldJug.eliminado !== newJug.eliminado ||
+            oldJug.bajas !== newJug.bajas;
 
-              setLocalPos(prevPos => {
-                if (Math.hypot(prevPos.x - newJug.x, prevPos.y - newJug.y) > 15) {
-                  lastSentPosRef.current = { x: newJug.x, y: newJug.y };
-                  return { x: newJug.x, y: newJug.y };
-                }
-                return prevPos;
-              });
-            }
+          // 1. Guardar siempre los nuevos datos en la referencia rápida de 60 FPS
+          playersRef.current = playersRef.current.map(p => p.id === newJug.id ? newJug : p);
 
-            return actualizados;
+          // 2. Solo re-renderizar en React si cambiaron estadísticas o estado importante
+          if (statsChanged) {
+            setPlayers(prev => prev.map(p => p.id === newJug.id ? newJug : p));
           }
-          if (eventType === 'DELETE') {
-            return prev.filter(p => p.id === oldJug.id);
+
+          // Sincronizar mis propias estadísticas locales
+          if (newJug.id === currentUserRef.current.id) {
+            setCurrentUser(prevUser => {
+              if (
+                prevUser.vida === newJug.vida &&
+                prevUser.escudo === newJug.escudo &&
+                prevUser.arma_tipo === newJug.arma_tipo &&
+                prevUser.arma_municion === newJug.arma_municion &&
+                prevUser.eliminado === newJug.eliminado &&
+                prevUser.bajas === newJug.bajas
+              ) {
+                return prevUser;
+              }
+              return {
+                ...prevUser,
+                vida: newJug.vida,
+                escudo: newJug.escudo,
+                arma_tipo: newJug.arma_tipo,
+                arma_municion: newJug.arma_municion,
+                eliminado: newJug.eliminado,
+                bajas: newJug.bajas
+              };
+            });
+
+            // Resincronizar posición forzada de seguridad si hay una desviación muy grande (rubberbanding correction)
+            setLocalPos(prevPos => {
+              if (Math.hypot(prevPos.x - newJug.x, prevPos.y - newJug.y) > 15) {
+                lastSentPosRef.current = { x: newJug.x, y: newJug.y };
+                
+                // Actualizar directamente el DOM para evitar lag visual
+                const meEl = document.querySelector('.entity-player-2d.me');
+                if (meEl) {
+                  meEl.style.left = `${newJug.x}%`;
+                  meEl.style.top = `${newJug.y}%`;
+                }
+                const meDot = document.querySelector('.minimap-player-dot.me');
+                if (meDot) {
+                  meDot.style.left = `${newJug.x}%`;
+                  meDot.style.top = `${newJug.y}%`;
+                }
+
+                return { x: newJug.x, y: newJug.y };
+              }
+              return prevPos;
+            });
           }
-          return prev;
-        });
+        } else if (eventType === 'DELETE') {
+          setPlayers(prev => prev.filter(p => p.id === oldJug.id));
+        }
 
         // Detectar si un oponente ha disparado para pintar el láser de color
         if (eventType === 'UPDATE') {
@@ -366,7 +400,7 @@ export default function App() {
     window.addEventListener('keyup', handleKeyUp);
     window.addEventListener('mousemove', handleMouseMove);
 
-    // Loop a 60 FPS
+    // Loop a 60 FPS con manipulaciones DOM de alto rendimiento
     const tick = () => {
       if (currentUserRef.current.eliminado) {
         gameLoopRef.current = requestAnimationFrame(tick);
@@ -383,15 +417,46 @@ export default function App() {
       if (keysPressedRef.current['arrowright'] || keysPressedRef.current['d']) dx = speed;
 
       if (dx !== 0 || dy !== 0) {
-        setLocalPos(prev => {
-          const nextX = Math.max(3, Math.min(97, prev.x + dx));
-          const nextY = Math.max(3, Math.min(97, prev.y + dy));
-          return { x: nextX, y: nextY };
-        });
+        const nextX = Math.max(3, Math.min(97, localPosRef.current.x + dx));
+        const nextY = Math.max(3, Math.min(97, localPosRef.current.y + dy));
+        localPosRef.current = { x: nextX, y: nextY };
+
+        // 1. Reposicionar avatar local directamente en el DOM (0ms de retraso y sin re-renderizar React)
+        const meEl = document.querySelector('.entity-player-2d.me');
+        if (meEl) {
+          meEl.style.left = `${nextX}%`;
+          meEl.style.top = `${nextY}%`;
+        }
+
+        // 2. Reposicionar punto del minimapa local directamente en el DOM
+        const meDot = document.querySelector('.minimap-player-dot.me');
+        if (meDot) {
+          meDot.style.left = `${nextX}%`;
+          meDot.style.top = `${nextY}%`;
+        }
       }
 
-      // Actualizar rotación cada frame para mantener el apuntado mientras se camina
+      // Actualizar rotación en 360 grados cada frame para el apuntado continuo
       updateAvatarRotation();
+
+      // 3. Sincronizar dinámicamente oponentes en el DOM para evitar re-renderizados a 60 FPS
+      playersRef.current.forEach(p => {
+        if (p.id === currentUserRef.current.id) return; // Omitir al propio jugador local
+
+        // Reposicionar avatar del oponente en la arena
+        const opEl = document.querySelector(`.entity-player-2d[data-id="${p.id}"]`);
+        if (opEl) {
+          opEl.style.left = `${p.x}%`;
+          opEl.style.top = `${p.y}%`;
+        }
+
+        // Reposicionar punto del oponente en el minimapa
+        const opDot = document.querySelector(`.minimap-player-dot[data-id="${p.id}"]`);
+        if (opDot) {
+          opDot.style.left = `${p.x}%`;
+          opDot.style.top = `${p.y}%`;
+        }
+      });
 
       gameLoopRef.current = requestAnimationFrame(tick);
     };
@@ -426,6 +491,8 @@ export default function App() {
         lastSentPosRef.current = { x: lp.x, y: lp.y };
         syncInProgressRef.current = true;
         try {
+          // Mantener sincronizado el estado React de forma perezosa y throttled (baja frecuencia)
+          setLocalPos({ x: lp.x, y: lp.y });
           await moverJugador(cur.id, Math.round(lp.x), Math.round(lp.y), rm.id);
         } catch (err) {
           console.error(err);

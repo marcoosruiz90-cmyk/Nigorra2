@@ -53,6 +53,7 @@ export default function Arena2D({
           <div
             key={p.id}
             className={`entity-player-2d ${isMe ? 'me' : ''}`}
+            data-id={p.id}
             style={{
               left: `${pos.x}%`,
               top: `${pos.y}%`

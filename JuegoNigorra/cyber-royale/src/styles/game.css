@@ -1,0 +1,110 @@
+/* ==========================================
+   CSS ARENA Y ENTIDADES - CYBER ROYALE
+   Mapas, Avatares, Cajas de Botín y Láseres en 360 grados
+   ========================================== */
+
+/* Viewport de pantalla completa */
+.arena-arena-2d {
+  width: 100vw;
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  background: radial-gradient(circle at center, #0e0d16 0%, #030307 100%);
+  overflow: hidden;
+  z-index: 5;
+  user-select: none;
+}
+
+/* Superposición de Tormenta de Datos */
+.storm-safe-zone-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 4px dashed var(--neon-pink);
+  border-radius: 20px;
+  box-shadow: 0 0 0 9999px rgba(255, 0, 85, 0.18),
+              inset 0 0 35px rgba(255, 0, 85, 0.25);
+  pointer-events: none;
+  z-index: 10;
+  transition: width 0.3s ease, height 0.3s ease;
+  animation: safeZonePulse 2s infinite ease-in-out;
+}
+
+@keyframes safeZonePulse {
+  0%, 100% { border-color: var(--neon-pink); filter: drop-shadow(0 0 10px rgba(255,0,85,0.4)); }
+  50% { border-color: var(--neon-purple); filter: drop-shadow(0 0 20px rgba(157,0,255,0.6)); }
+}
+
+/* Entidades: Avatares de los Jugadores */
+.entity-player-2d {
+  position: absolute;
+  font-size: 2.2rem;
+  z-index: 50;
+  transform: translate(-50%, -50%);
+  /* Transición lineal ultra corta para oponentes */
+  transition: left 0.08s linear, top 0.08s linear;
+  user-select: none;
+  filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.95));
+  animation: floatPlayer 2s infinite ease-in-out;
+}
+
+.entity-player-2d.me {
+  filter: drop-shadow(0 0 15px var(--neon-cyan));
+  z-index: 60;
+  animation: floatPlayerMe 1.5s infinite ease-in-out;
+  /* ¡CERO TRANSICIÓN CSS para movimiento a 60 FPS ultra instantáneo en local! */
+  transition: none !important;
+}
+
+@keyframes floatPlayer {
+  0%, 100% { transform: translate(-50%, -50%) translateY(0); }
+  50% { transform: translate(-50%, -50%) translateY(-3px); }
+}
+
+@keyframes floatPlayerMe {
+  0%, 100% { transform: translate(-50%, -50%) translateY(0) scale(1); }
+  50% { transform: translate(-50%, -50%) translateY(-5px) scale(1.05); }
+}
+
+/* Cajas de Loot / Items */
+.entity-loot-2d {
+  position: absolute;
+  font-size: 1.8rem;
+  z-index: 30;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 0 12px rgba(255, 234, 0, 0.6));
+  animation: floatLoot 2.5s infinite ease-in-out;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.entity-loot-2d:hover {
+  transform: translate(-50%, -50%) scale(1.2);
+}
+
+@keyframes floatLoot {
+  0%, 100% { transform: translate(-50%, -50%) translateY(0) rotate(0deg); }
+  50% { transform: translate(-50%, -50%) translateY(-4px) rotate(8deg); }
+}
+
+/* Efecto de Disparo de Láser en 360 grados */
+.laser-line-2d {
+  position: absolute;
+  background: var(--neon-cyan);
+  box-shadow: 0 0 12px var(--neon-cyan), 0 0 25px var(--neon-cyan);
+  z-index: 45;
+  pointer-events: none;
+  animation: fadeLaser 0.4s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+}
+
+.laser-line-2d.opponent {
+  background: var(--neon-pink);
+  box-shadow: 0 0 12px var(--neon-pink), 0 0 25px var(--neon-pink);
+}
+
+@keyframes fadeLaser {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}

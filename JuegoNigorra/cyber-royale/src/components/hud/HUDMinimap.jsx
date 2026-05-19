@@ -41,6 +41,7 @@ export default function HUDMinimap({
             <div 
               key={p.id} 
               className={`minimap-player-dot ${isMe ? 'me' : ''}`}
+              data-id={p.id}
               style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
             />
           );
