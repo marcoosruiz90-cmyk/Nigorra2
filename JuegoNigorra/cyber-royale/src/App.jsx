@@ -383,6 +383,7 @@ export default function App() {
       setView('game');
     } catch (err) {
       console.error(err);
+      alert('⚠️ Error de Base de Datos al iniciar partida: ' + err.message);
     }
   };
 
