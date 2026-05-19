@@ -4,6 +4,7 @@ import {
   isConfigured,
   crearSala,
   unirseASala,
+  iniciarPartida,
   moverJugador,
   disparar,
   contraerTormenta,
