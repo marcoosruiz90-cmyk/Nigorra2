@@ -12,6 +12,20 @@ import {
   obtenerLeaderboard
 } from './supabase';
 
+// Componentes Modulares de Interfaz
+import Home from './components/Home';
+import Lobby from './components/Lobby';
+import Results from './components/Results';
+import Arena2D from './components/Arena2D';
+import LeaderboardModal from './components/LeaderboardModal';
+
+// Componentes del Sistema de HUD AAA
+import HUDPlayerBadge from './components/hud/HUDPlayerBadge';
+import HUDWeaponCard from './components/hud/HUDWeaponCard';
+import HUDStatsCard from './components/hud/HUDStatsCard';
+import HUDMinimap from './components/hud/HUDMinimap';
+import HUDMobileControls from './components/hud/HUDMobileControls';
+
 export default function App() {
   // ==========================================
   // ESTADOS PRINCIPALES
@@ -612,157 +626,34 @@ export default function App() {
         )}
       </header>
 
-      {/* ==========================================
-         VISTA 1: INICIO (HOME)
-         ========================================== */}
+      {/* VISTA 1: INICIO (HOME) */}
       {view === 'home' && (
-        <section className="view active">
-          {!isConfigured && (
-            <div className="card hero-card" style={{ border: '2px solid var(--neon-pink)', background: 'rgba(20, 5, 5, 0.9)' }}>
-              <h3 style={{ color: 'var(--neon-pink)', fontFamily: 'var(--font-title)', marginBottom: '0.5rem' }}>🔌 Base de Datos Pendiente</h3>
-              <p>Revisa el archivo <code>.env</code> en la carpeta <code>cyber-royale</code> y asegúrate de rellenar las claves de Supabase para que funcione la conexión.</p>
-            </div>
-          )}
-
-          <div className="card glassmorphic hero-card">
-            <h2>BATTLE ROYALE EN <span className="text-gradient">TIEMPO REAL</span></h2>
-            <p className="subtitle">Mueve a tu personaje en una rejilla cyberpunk, recoge armas láser legendarias y elimina a tus compañeros de clase en vivo.</p>
-
-            <div className="setup-section">
-              <div className="input-group">
-                <label>Elige tu Cyber-Nickname</label>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Introduce tu alias..."
-                  maxLength={15}
-                  disabled={!isConfigured}
-                />
-              </div>
-
-              <div className="avatar-selector">
-                <span className="label-avatar">Elige tu Avatar</span>
-                <div className="avatar-options">
-                  {['🦊', '🐱', '👾', '🦁', '🦉', '🤖'].map(emoji => (
-                    <button
-                      key={emoji}
-                      className={`avatar-btn ${avatar === emoji ? 'selected' : ''}`}
-                      onClick={() => setAvatar(emoji)}
-                      disabled={!isConfigured}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="actions-grid">
-              <button
-                className="btn btn-primary"
-                onClick={handleCrearSala}
-                disabled={!isConfigured}
-              >
-                👑 Crear Arena
-              </button>
-
-              <div className="join-box">
-                <input
-                  type="text"
-                  value={roomCodeInput}
-                  onChange={(e) => setRoomCodeInput(e.target.value)}
-                  placeholder="CÓDIGO DE ARENA"
-                  maxLength={9}
-                  disabled={!isConfigured}
-                />
-                <button
-                  className="btn btn-secondary"
-                  onClick={handleUnirseSala}
-                  disabled={!isConfigured}
-                >
-                  🚀 Unirse a Arena
-                </button>
-              </div>
-            </div>
-
-            <div style={{ marginTop: '2rem' }}>
-              <button className="btn btn-secondary" style={{ width: '100%', borderStyle: 'dashed' }} onClick={handleVerLeaderboard}>
-                🏆 Ver Ránking de Ciber-Soldados
-              </button>
-            </div>
-          </div>
-        </section>
+        <Home
+          username={username}
+          setUsername={setUsername}
+          avatar={avatar}
+          setAvatar={setAvatar}
+          roomCodeInput={roomCodeInput}
+          setRoomCodeInput={setRoomCodeInput}
+          handleCrearSala={handleCrearSala}
+          handleUnirseSala={handleUnirseSala}
+          handleVerLeaderboard={handleVerLeaderboard}
+          isConfigured={isConfigured}
+        />
       )}
 
-      {/* ==========================================
-         VISTA 2: LOBBY DE ESPERA
-         ========================================== */}
+      {/* VISTA 2: LOBBY DE ESPERA */}
       {view === 'lobby' && room && (
-        <section className="view active">
-          <div className="card glassmorphic lobby-card">
-            <div className="lobby-header">
-              <div className="room-code-section">
-                <span className="room-label">Código de la Arena</span>
-                <div className="room-code-display">
-                  <h2>{room.id}</h2>
-                  <button
-                    className="btn-copy"
-                    onClick={() => {
-                      navigator.clipboard.writeText(room.id);
-                      alert('¡Código copiado al portapapeles!');
-                    }}
-                  >
-                    📋
-                  </button>
-                </div>
-              </div>
-
-              <div className="lobby-status-pill">
-                <span className="pulse-dot"></span>
-                <span>Esperando combatientes...</span>
-              </div>
-            </div>
-
-            <div className="players-panel">
-              <h3>Soldados en el Lobby ({players.length})</h3>
-              <div className="players-list">
-                {players.map(p => (
-                  <div key={p.id} className={`player-item ${p.es_host ? 'is-host' : ''}`}>
-                    <span className="item-avatar">{p.avatar}</span>
-                    <span className="item-name">{p.nombre}</span>
-                    {p.es_host && <span className="host-crown">Líder 👑</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="lobby-actions">
-              {currentUser.esHost ? (
-                <button
-                  className="btn btn-primary"
-                  onClick={handleIniciarPartida}
-                  disabled={players.length < 1}
-                >
-                  🔥 Iniciar Battle Royale
-                </button>
-              ) : (
-                <div className="lobby-waiting-msg">
-                  <span className="loading-spinner"></span>
-                  <p>Esperando a que el Líder comience el combate táctico...</p>
-                </div>
-              )}
-              <button className="btn btn-danger" onClick={handleSalirPartida}>
-                Abandonar Lobby
-              </button>
-            </div>
-          </div>
-        </section>
+        <Lobby
+          room={room}
+          players={players}
+          currentUser={currentUser}
+          handleIniciarPartida={handleIniciarPartida}
+          handleSalirPartida={handleSalirPartida}
+        />
       )}
 
-      {/* ==========================================
-         VISTA 3: EN ARENA DE JUEGO (GAMEPLAY)
-         ========================================== */}
+      {/* VISTA 3: EN ARENA DE JUEGO (GAMEPLAY) */}
       {view === 'game' && room && (
         <section className="view active" style={{ padding: 0, margin: 0, background: '#000', overflow: 'hidden' }}>
           {stormWarning && (
@@ -771,304 +662,64 @@ export default function App() {
             </div>
           )}
 
-          {/* 1. MAPA DE TODA LA PANTALLA */}
-          <div className="arena-arena-2d full-screen">
-            {/* Superposición de la Tormenta de Datos en Full-screen */}
-            {room && (
-              <div 
-                className="storm-safe-zone-overlay" 
-                style={{
-                  width: `${room.tormenta_radio * 10.0}%`,
-                  height: `${room.tormenta_radio * 10.0}%`
-                }}
-              />
-            )}
+          {/* Viewport del mapa continuo 2D */}
+          <Arena2D
+            room={room}
+            players={players}
+            currentUser={currentUser}
+            localPos={localPos}
+            lootBoxes={lootBoxes}
+            laserHits={laserHits}
+          />
 
-            {/* Cajas de Loot */}
-            {lootBoxes.filter(c => !c.recogida).map(c => {
-              let icon = '📦';
-              if (c.tipo === 'botiquin') icon = '❤️';
-              else if (c.tipo === 'escudo') icon = '🛡️';
-              else if (c.tipo === 'pistola') icon = '🔫';
-              else if (c.tipo === 'escopeta') icon = '🔥';
-              else if (c.tipo === 'sniper') icon = '⚡';
-              
-              return (
-                <div 
-                  key={c.id} 
-                  className="entity-loot-2d" 
-                  style={{ left: `${c.x}%`, top: `${c.y}%` }}
-                >
-                  {icon}
-                </div>
-              );
-            })}
+          {/* Sistema de HUD AAA (Overlays) */}
+          <HUDPlayerBadge currentUser={currentUser} />
+          
+          <HUDMinimap
+            room={room}
+            players={players}
+            currentUser={currentUser}
+            localPos={localPos}
+            lootBoxes={lootBoxes}
+            handleSalirPartida={handleSalirPartida}
+          />
 
-            {/* Jugadores en Full-screen */}
-            {players.map(p => {
-              const isMe = p.id === currentUser.id;
-              const pos = isMe ? localPos : { x: p.x, y: p.y };
+          <HUDWeaponCard currentUser={currentUser} />
+          
+          <HUDStatsCard currentUser={currentUser} />
 
-              if (p.eliminado) return null;
-
-              return (
-                <div
-                  key={p.id}
-                  className={`entity-player-2d ${isMe ? 'me' : ''}`}
-                  style={{
-                    left: `${pos.x}%`,
-                    top: `${pos.y}%`
-                  }}
-                  title={p.nombre}
-                >
-                  {p.avatar}
-                </div>
-              );
-            })}
-
-            {/* Efectos de Láseres en 2D en Full-screen */}
-            {laserHits.map((h, index) => {
-              let style = {};
-              if (h.direccion === 'UP') {
-                style = { left: `${h.x}%`, top: `${h.y / 2.0}%`, width: '4px', height: `${h.y}%` };
-              } else if (h.direccion === 'DOWN') {
-                style = { left: `${h.x}%`, top: `${(100.0 + h.y) / 2.0}%`, width: '4px', height: `${100.0 - h.y}%` };
-              } else if (h.direccion === 'LEFT') {
-                style = { left: `${h.x / 2.0}%`, top: `${h.y}%`, width: `${h.x}%`, height: '4px' };
-              } else if (h.direccion === 'RIGHT') {
-                style = { left: `${(100.0 + h.x) / 2.0}%`, top: `${h.y}%`, width: `${100.0 - h.x}%`, height: '4px' };
-              }
-              return (
-                <div
-                  key={index}
-                  className={`laser-line-2d ${h.color === 'pink' ? 'opponent' : ''}`}
-                  style={style}
-                />
-              );
-            })}
-          </div>
-
-          {/* ==========================================
-             SISTEMA DE HUD DE JUEGO AAA (OVERLAYS)
-             ========================================== */}
-
-          {/* ARRIBA A LA IZQUIERDA: Nombre del jugador */}
-          <div className="hud-top-left">
-            <div className="hud-player-badge">
-              <span className="hud-avatar">{currentUser.avatar}</span>
-              <span className="hud-name">{currentUser.nombre}</span>
-            </div>
-          </div>
-
-          {/* ARRIBA A LA DERECHA: Minimapa, Kills, y Salir */}
-          <div className="hud-top-right">
-            {/* Minimapa Táctico 2D */}
-            <div className="hud-minimap">
-              {/* Storm Safe Area on Minimap */}
-              <div 
-                className="minimap-storm-overlay"
-                style={{
-                  width: `${room.tormenta_radio * 10.0}%`,
-                  height: `${room.tormenta_radio * 10.0}%`
-                }}
-              />
-              
-              {/* Cajas de botín en el minimapa */}
-              {lootBoxes.filter(c => !c.recogida).map(c => (
-                <div 
-                  key={c.id} 
-                  className="minimap-loot-dot" 
-                  style={{ left: `${c.x}%`, top: `${c.y}%` }}
-                />
-              ))}
-
-              {/* Jugadores en el minimapa */}
-              {players.map(p => {
-                if (p.eliminado) return null;
-                const isMe = p.id === currentUser.id;
-                const pos = isMe ? localPos : { x: p.x, y: p.y };
-                return (
-                  <div 
-                    key={p.id} 
-                    className={`minimap-player-dot ${isMe ? 'me' : ''}`}
-                    style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
-                  />
-                );
-              })}
-            </div>
-
-            {/* Contador de Kills */}
-            <div className="hud-kills-badge">
-              <span className="kills-icon">💀</span>
-              <span>{currentUser.bajas} BAJAS</span>
-            </div>
-
-            {/* Botón de Abandonar Sala */}
-            <button className="hud-exit-btn" onClick={handleSalirPartida}>
-              SALIR DE LA ARENA
-            </button>
-          </div>
-
-          {/* ABAJO A LA IZQUIERDA: Armamento */}
-          <div className="hud-bottom-left">
-            <div className="hud-weapon-card">
-              <div className="hud-weapon-icon">
-                {currentUser.arma_tipo === 'ninguna' && '🥋'}
-                {currentUser.arma_tipo === 'pistola' && '🔫'}
-                {currentUser.arma_tipo === 'escopeta' && '🔥'}
-                {currentUser.arma_tipo === 'sniper' && '⚡'}
-              </div>
-              <div className="hud-weapon-details">
-                <span className="hud-weapon-label">ARMAMENTO DISPONIBLE</span>
-                <span className="hud-weapon-name">
-                  {currentUser.arma_tipo === 'ninguna' ? 'MANOS LIBRES' : currentUser.arma_tipo.toUpperCase()}
-                </span>
-                <span className="hud-weapon-ammo">
-                  {currentUser.arma_tipo === 'ninguna' ? 'SIN MUNICIÓN' : `${currentUser.arma_municion} BALAS`}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* ABAJO A LA DERECHA: Integridad Física (Vida) y Escudo */}
-          <div className="hud-bottom-right">
-            <div className="hud-stats-card">
-              {/* Barra de Vida */}
-              <div className="hud-stat-bar-container">
-                <div className="hud-stat-bar-header">
-                  <span className="hud-bar-vida">❤️ INTEGRIDAD FÍSICA</span>
-                  <span>{currentUser.vida}%</span>
-                </div>
-                <div className="hud-progress-bar-bg">
-                  <div className="hud-progress-bar-fill fill-vida" style={{ width: `${currentUser.vida}%` }}></div>
-                </div>
-              </div>
-
-              {/* Barra de Escudo */}
-              <div className="hud-stat-bar-container" style={{ marginTop: '0.8rem' }}>
-                <div className="hud-stat-bar-header">
-                  <span className="hud-bar-escudo">🛡️ ESCUDO DEFENSIVO</span>
-                  <span>{currentUser.escudo}%</span>
-                </div>
-                <div className="hud-progress-bar-bg">
-                  <div className="hud-progress-bar-fill fill-escudo" style={{ width: `${currentUser.escudo}%` }}></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* BANNER DE ESPECTADOR (SI ELIMINADO) */}
+          {/* Banner de espectador si es eliminado */}
           {currentUser.eliminado && (
             <div className="hud-spectator-banner">
               👁️ ESPECTANDO A LOS COMBATIENTES ACTIVOS
             </div>
           )}
 
-          {/* CONTROLES TÁCTILES FLOTANTES (PARA MÓVILES) */}
-          <div className="hud-mobile-controls">
-            {/* D-Pad de Movimiento */}
-            <div className="hud-d-pad">
-              <button className="hud-d-btn d-up" onClick={() => handleMoverTáctil('UP')}>▲</button>
-              <div className="hud-d-pad-mid">
-                <button className="hud-d-btn d-left" onClick={() => handleMoverTáctil('LEFT')}>◀</button>
-                <button className="hud-d-btn d-right" onClick={() => handleMoverTáctil('RIGHT')}>▶</button>
-              </div>
-              <button className="hud-d-btn d-down" onClick={() => handleMoverTáctil('DOWN')}>▼</button>
-            </div>
-
-            {/* Action Pad de Disparo */}
-            <div className="hud-action-pad">
-              <button className="hud-fire-btn" onClick={() => handleDisparar('UP')} disabled={currentUser.arma_tipo === 'ninguna' || currentUser.arma_municion <= 0}>▲</button>
-              <div className="hud-fire-mid">
-                <button className="hud-fire-btn" onClick={() => handleDisparar('LEFT')} disabled={currentUser.arma_tipo === 'ninguna' || currentUser.arma_municion <= 0}>◀</button>
-                <button className="hud-fire-btn" onClick={() => handleDisparar('RIGHT')} disabled={currentUser.arma_tipo === 'ninguna' || currentUser.arma_municion <= 0}>▶</button>
-              </div>
-              <button className="hud-fire-btn" onClick={() => handleDisparar('DOWN')} disabled={currentUser.arma_tipo === 'ninguna' || currentUser.arma_municion <= 0}>▼</button>
-            </div>
-          </div>
+          {/* Controles táctiles flotantes en móvil */}
+          <HUDMobileControls
+            currentUser={currentUser}
+            handleMoverTáctil={handleMoverTáctil}
+            handleDisparar={handleDisparar}
+          />
         </section>
       )}
 
-      {/* ==========================================
-         VISTA 4: RESULTADOS FINALES / VICTORIA
-         ========================================== */}
+      {/* VISTA 4: RESULTADOS FINALES / VICTORIA */}
       {view === 'results' && (
-        <section className="view active">
-          <div className="card glassmorphic results-card">
-            <h2>🏆 BATTLE ROYALE COMPLETADO 🏆</h2>
-            <p className="subtitle">Un único ciber-soldado ha prevalecido y conquistado la arena digital de Nigorra.</p>
-
-            <span className="crown-victory">👑</span>
-
-            <div className="winner-banner">
-              <p style={{ color: 'var(--neon-yellow)', textTransform: 'uppercase', fontFamily: 'var(--font-title)', fontSize: '0.9rem', letterSpacing: '1px' }}>¡VICTORIA MAGISTRAL!</p>
-              <h3 className="winner-name">{getGanador()?.nombre}</h3>
-              <div className="winner-stats">
-                <span>Avatar: {getGanador()?.avatar}</span>
-                <span>Bajas totales: 💀 {getGanador()?.bajas}</span>
-              </div>
-            </div>
-
-            <button className="btn btn-primary btn-glow" style={{ width: '100%' }} onClick={() => setView('home')}>
-              Volver al Centro de Control
-            </button>
-          </div>
-        </section>
+        <Results
+          players={players}
+          getGanador={getGanador}
+          handleVolverHome={() => setView('home')}
+        />
       )}
 
-      {/* ==========================================
-         MODAL: RANKING DE CIBER-SOLDADOS
-         ========================================== */}
+      {/* MODAL: RANKING DE CIBER-SOLDADOS */}
       {showLeaderboard && (
-        <div className="modal-overlay">
-          <div className="card glassmorphic modal-content">
-            <div className="modal-header">
-              <h3>🏆 RÁNKING HISTÓRICO DE CIBER-SOLDADOS</h3>
-              <button className="btn-close" onClick={() => setShowLeaderboard(false)}>×</button>
-            </div>
-
-            {leaderboardLoading ? (
-              <div style={{ textAlign: 'center', padding: '2rem' }}>
-                <span className="loading-spinner" style={{ width: '40px', height: '40px' }}></span>
-                <p style={{ marginTop: '1rem', color: '#8c8c9e' }}>Hackeando base de datos...</p>
-              </div>
-            ) : (
-              <table className="leaderboard-table">
-                <thead>
-                  <tr>
-                    <th>Rango</th>
-                    <th>Ciber-Soldado</th>
-                    <th>Victorias</th>
-                    <th>Bajas</th>
-                    <th>Partidas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {globalLeaderboard.map((item, idx) => (
-                    <tr key={item.id}>
-                      <td className={idx === 0 ? 'rank-gold' : idx === 1 ? 'rank-silver' : idx === 2 ? 'rank-bronze' : ''}>
-                        {idx + 1}º
-                      </td>
-                      <td style={{ fontFamily: 'var(--font-title)', fontWeight: 'bold' }}>{item.nombre}</td>
-                      <td style={{ color: 'var(--neon-yellow)', fontWeight: 'bold' }}>🏆 {item.victorias}</td>
-                      <td>💀 {item.bajas_totales}</td>
-                      <td>🎮 {item.partidas_jugadas}</td>
-                    </tr>
-                  ))}
-                  {globalLeaderboard.length === 0 && (
-                    <tr>
-                      <td colSpan="5" style={{ textAlign: 'center', color: '#8c8c9e' }}>Ningún registro encontrado. ¡Sé el primero en ganar!</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            )}
-
-            <button className="btn btn-secondary" style={{ width: '100%' }} onClick={() => setShowLeaderboard(false)}>
-              Cerrar Consola
-            </button>
-          </div>
-        </div>
+        <LeaderboardModal
+          leaderboardLoading={leaderboardLoading}
+          globalLeaderboard={globalLeaderboard}
+          setShowLeaderboard={setShowLeaderboard}
+        />
       )}
     </div>
   );
