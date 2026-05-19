@@ -66,6 +66,7 @@ export default function App() {
   const keysPressedRef = useRef({});
   const gameLoopRef = useRef(null);
   const lastSentPosRef = useRef({ x: 50, y: 50 });
+  const syncInProgressRef = useRef(false); // Seguro para evitar peticiones de red paralelas desordenadas
 
   // Referencias optimizadas para evitar stutters de Garbage Collection y re-renderizados
   const currentUserRef = useRef(currentUser);
@@ -391,6 +392,7 @@ export default function App() {
       const lp = localPosRef.current;
 
       if (cur.eliminado || !rm?.id) return;
+      if (syncInProgressRef.current) return; // Esperar si hay una actualización en curso
 
       const dx = Math.abs(lp.x - lastSentPosRef.current.x);
       const dy = Math.abs(lp.y - lastSentPosRef.current.y);
@@ -398,10 +400,13 @@ export default function App() {
       // Si ha habido algún movimiento significativo (ej. > 0.8% de recorrido)
       if (dx > 0.8 || dy > 0.8) {
         lastSentPosRef.current = { x: lp.x, y: lp.y };
+        syncInProgressRef.current = true;
         try {
           await moverJugador(cur.id, Math.round(lp.x), Math.round(lp.y), rm.id);
         } catch (err) {
           console.error(err);
+        } finally {
+          syncInProgressRef.current = false;
         }
       }
     }, 90);
