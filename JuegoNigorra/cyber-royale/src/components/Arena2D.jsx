@@ -25,19 +25,22 @@ export default function Arena2D({
       {/* Cajas de Loot */}
       {lootBoxes.filter(c => !c.recogida).map(c => {
         let icon = '📦';
-        if (c.tipo === 'botiquin') icon = '❤️';
-        else if (c.tipo === 'escudo') icon = '🛡️';
-        else if (c.tipo === 'pistola') icon = '🔫';
-        else if (c.tipo === 'escopeta') icon = '🔥';
-        else if (c.tipo === 'sniper') icon = '⚡';
+        let tierClass = 'tier-cyan';
+        if (c.tipo === 'botiquin') { icon = '❤️'; tierClass = 'tier-medical'; }
+        else if (c.tipo === 'escudo') { icon = '🛡️'; tierClass = 'tier-shield'; }
+        else if (c.tipo === 'pistola') { icon = '🔫'; tierClass = 'tier-cyan'; }
+        else if (c.tipo === 'escopeta') { icon = '💥'; tierClass = 'tier-epic'; }
+        else if (c.tipo === 'sniper') { icon = '⚡'; tierClass = 'tier-legendary'; }
         
         return (
           <div 
             key={c.id} 
-            className="entity-loot-2d" 
+            className={`entity-loot-2d ${tierClass}`} 
             style={{ left: `${c.x}%`, top: `${c.y}%` }}
           >
-            {icon}
+            <div className="loot-hologram-ring"></div>
+            <div className="loot-icon-wrapper">{icon}</div>
+            <div className="loot-label">{c.tipo.toUpperCase()}</div>
           </div>
         );
       })}
@@ -64,27 +67,6 @@ export default function Arena2D({
               {p.avatar}
             </div>
           </div>
-        );
-      })}
-
-      {/* Efectos de Láseres en 2D en Full-screen */}
-      {laserHits.map((h, index) => {
-        // h.angulo está en radianes, x e y están en % del tablero
-        const style = {
-          left: `${h.x}%`,
-          top: `${h.y}%`,
-          width: '130vmax', // Cruza por completo el viewport diagonalmente
-          height: '4px',
-          transform: `rotate(${h.angulo}rad)`,
-          transformOrigin: 'left center',
-          position: 'absolute'
-        };
-        return (
-          <div
-            key={index}
-            className={`laser-line-2d ${h.color === 'pink' ? 'opponent' : ''}`}
-            style={style}
-          />
         );
       })}
     </div>

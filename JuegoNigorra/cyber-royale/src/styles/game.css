@@ -68,43 +68,134 @@
   50% { transform: translate(-50%, -50%) translateY(-5px) scale(1.05); }
 }
 
-/* Cajas de Loot / Items */
+/* ==========================================
+   NUEVO SISTEMA DE BOTÍN HOLOGRÁFICO
+   ========================================== */
+
 .entity-loot-2d {
   position: absolute;
-  font-size: 1.8rem;
   z-index: 30;
   transform: translate(-50%, -50%);
-  filter: drop-shadow(0 0 12px rgba(255, 234, 0, 0.6));
-  animation: floatLoot 2.5s infinite ease-in-out;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
   cursor: pointer;
-  transition: transform 0.2s ease;
+  width: 70px;
+  height: 70px;
 }
 
 .entity-loot-2d:hover {
-  transform: translate(-50%, -50%) scale(1.2);
+  transform: translate(-50%, -50%) scale(1.25);
 }
 
-@keyframes floatLoot {
-  0%, 100% { transform: translate(-50%, -50%) translateY(0) rotate(0deg); }
-  50% { transform: translate(-50%, -50%) translateY(-4px) rotate(8deg); }
-}
-
-/* Efecto de Disparo de Láser en 360 grados */
-.laser-line-2d {
+/* Anillos Holográficos con efecto de rotación */
+.loot-hologram-ring {
   position: absolute;
-  background: var(--neon-cyan);
-  box-shadow: 0 0 12px var(--neon-cyan), 0 0 25px var(--neon-cyan);
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: 2px dashed currentColor;
+  opacity: 0.65;
+  animation: rotateRing 10s linear infinite;
+  box-shadow: 0 0 15px currentColor;
+  pointer-events: none;
+}
+
+@keyframes rotateRing {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Icono Flotante del Item */
+.loot-icon-wrapper {
+  font-size: 2rem;
+  z-index: 5;
+  animation: floatLootIcon 2s ease-in-out infinite;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.8));
+}
+
+@keyframes floatLootIcon {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* Etiqueta Cyberpunk */
+.loot-label {
+  position: absolute;
+  bottom: -15px;
+  font-family: var(--font-title);
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: #fff;
+  background: rgba(10, 10, 18, 0.85);
+  border: 1px solid var(--glass-border);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+/* Colores de Raras por Tier */
+.tier-medical { color: #00ff66; }
+.tier-shield { color: #0088ff; }
+.tier-cyan { color: var(--neon-cyan); }
+.tier-epic { color: var(--neon-purple); }
+.tier-legendary { color: var(--neon-yellow); }
+
+/* ==========================================
+   PROYECTILES Y BALAS CYBERPUNK A 60 FPS
+   ========================================== */
+
+.cyber-bullet {
   z-index: 45;
   pointer-events: none;
-  animation: fadeLaser 0.4s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
 }
 
-.laser-line-2d.opponent {
+.cyber-bullet.me {
+  background: #ffffff;
+  box-shadow: 0 0 10px #ffffff, 0 0 20px var(--neon-cyan), 0 0 35px var(--neon-cyan);
+}
+
+.cyber-bullet.opponent {
+  background: #ffffff;
+  box-shadow: 0 0 10px #ffffff, 0 0 20px var(--neon-pink), 0 0 35px var(--neon-pink);
+}
+
+/* Cola de rastro de luz */
+.bullet-trail {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 25px;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, transparent 0%, currentColor 100%);
+  transform-origin: right center;
+  opacity: 0.7;
+  filter: blur(1px);
+}
+
+/* ==========================================
+   PARTÍCULAS DE IMPACTO (SPARKS)
+   ========================================== */
+.cyber-spark {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 44;
+}
+
+.cyber-spark.me {
+  background: var(--neon-cyan);
+  box-shadow: 0 0 6px var(--neon-cyan);
+}
+
+.cyber-spark.opponent {
   background: var(--neon-pink);
-  box-shadow: 0 0 12px var(--neon-pink), 0 0 25px var(--neon-pink);
-}
-
-@keyframes fadeLaser {
-  0% { opacity: 1; }
-  100% { opacity: 0; }
+  box-shadow: 0 0 6px var(--neon-pink);
 }

@@ -44,9 +44,6 @@ export default function useGameEngine() {
   // Posición continua en tiempo real del jugador local (0% a 100%)
   const [localPos, setLocalPos] = useState({ x: 50, y: 50 });
 
-  // Efectos Visuales Especiales (Láser y Alertas)
-  const [laserHits, setLaserHits] = useState([]); // Array de {x, y, angulo, color}
-
   // Leaderboard Modal
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [globalLeaderboard, setGlobalLeaderboard] = useState([]);
@@ -61,6 +58,12 @@ export default function useGameEngine() {
   const lastSentPosRef = useRef({ x: 50, y: 50 });
   const syncInProgressRef = useRef(false); // Seguro para evitar peticiones de red paralelas desordenadas
   const lastMousePosRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+
+  // ==========================================
+  // INERCIA DE MOVILIDAD Y MOTOR DE BALAS FÍSICAS
+  // ==========================================
+  const playerVelocityRef = useRef({ x: 0, y: 0 });
+  const projectilesRef = useRef([]); // Guarda las balas físicas voladoras
 
   // Referencias optimizadas para evitar stutters de Garbage Collection y re-renderizados
   const currentUserRef = useRef(currentUser);
@@ -84,11 +87,68 @@ export default function useGameEngine() {
     roomRef.current = room;
   }, [room]);
 
+  // Limpiar balas físicas del DOM al salir o cambiar de vista
+  useEffect(() => {
+    if (view !== 'game') {
+      document.querySelectorAll('.cyber-bullet, .cyber-spark').forEach(el => el.remove());
+      projectilesRef.current = [];
+    }
+  }, [view]);
+
   // Desuscribir Canales
   const desuscribirCanales = () => {
     if (roomSubRef.current) supabase.removeChannel(roomSubRef.current);
     if (playersSubRef.current) supabase.removeChannel(playersSubRef.current);
     if (lootSubRef.current) supabase.removeChannel(lootSubRef.current);
+  };
+
+  // ==========================================
+  // UTILERÍA DE PARTÍCULAS FÍSICAS (SPARKS)
+  // ==========================================
+  const crearImpactoParticulas = (x, y, color) => {
+    const arenaEl = document.querySelector('.arena-arena-2d');
+    if (!arenaEl) return;
+
+    const numParticles = 6;
+    for (let i = 0; i < numParticles; i++) {
+      const pId = Math.random().toString(36).substr(2, 9);
+      const pEl = document.createElement('div');
+      pEl.id = `spark-${pId}`;
+      pEl.className = `cyber-spark ${color === 'cyan' ? 'me' : 'opponent'}`;
+      pEl.style.position = 'absolute';
+      pEl.style.left = `${x}%`;
+      pEl.style.top = `${y}%`;
+
+      const angle = Math.random() * Math.PI * 2;
+      const velocity = 0.4 + Math.random() * 1.2;
+      const vx = Math.cos(angle) * velocity;
+      const vy = Math.sin(angle) * velocity;
+
+      arenaEl.appendChild(pEl);
+
+      let opacity = 1;
+      let px = x;
+      let py = y;
+
+      const animateSpark = () => {
+        px += vx;
+        py += vy;
+        opacity -= 0.07;
+
+        const el = document.getElementById(`spark-${pId}`);
+        if (el) {
+          if (opacity <= 0) {
+            el.remove();
+          } else {
+            el.style.left = `${px}%`;
+            el.style.top = `${py}%`;
+            el.style.opacity = opacity;
+            requestAnimationFrame(animateSpark);
+          }
+        }
+      };
+      requestAnimationFrame(animateSpark);
+    }
   };
 
   // ==========================================
@@ -261,10 +321,28 @@ export default function useGameEngine() {
           setPlayers(prev => prev.filter(p => p.id === oldJug.id));
         }
 
+        // Crear una bala táctica voladora a 60 FPS si dispara un oponente
         if (eventType === 'UPDATE') {
           const jug = payload.new;
           if (jug.id !== currentUserRef.current.id && jug.ultima_accion && jug.ultima_accion.startsWith('shoot_')) {
-            triggerOponenteLaser(jug);
+            const parts = jug.ultima_accion.split('_');
+            const angulo = parseFloat(parts[1]);
+            if (!isNaN(angulo)) {
+              const bulletId = Math.random().toString(36).substr(2, 9);
+              const bulletSpeed = 1.45; // velocidad de la bala en % por frame
+              const proj = {
+                id: bulletId,
+                x: jug.x,
+                y: jug.y,
+                vx: Math.cos(angulo) * bulletSpeed,
+                vy: Math.sin(angulo) * bulletSpeed,
+                color: 'pink',
+                size: 8,
+                distanceTraveled: 0,
+                maxDistance: 60
+              };
+              projectilesRef.current.push(proj);
+            }
           }
         }
       })
@@ -352,32 +430,46 @@ export default function useGameEngine() {
     window.addEventListener('keyup', handleKeyUp);
     window.addEventListener('mousemove', handleMouseMove);
 
+    // Loop principal de renderizado y físicas a 60 FPS
     const tick = () => {
       if (currentUserRef.current.eliminado) {
         gameLoopRef.current = requestAnimationFrame(tick);
         return;
       }
 
-      let dx = 0;
-      let dy = 0;
-      const speed = 0.42;
+      // 1. Controles con inercia y fricción para movilidad fluida estilo ZombsRoyale
+      let ax = 0;
+      let ay = 0;
+      const acc = 0.055; // aceleración por frame
+      const friction = 0.88; // resistencia al deslizamiento (más inercia)
 
-      if (keysPressedRef.current['arrowup'] || keysPressedRef.current['w']) dy = -speed;
-      if (keysPressedRef.current['arrowdown'] || keysPressedRef.current['s']) dy = speed;
-      if (keysPressedRef.current['arrowleft'] || keysPressedRef.current['a']) dx = -speed;
-      if (keysPressedRef.current['arrowright'] || keysPressedRef.current['d']) dx = speed;
+      if (keysPressedRef.current['arrowup'] || keysPressedRef.current['w']) ay = -acc;
+      if (keysPressedRef.current['arrowdown'] || keysPressedRef.current['s']) ay = acc;
+      if (keysPressedRef.current['arrowleft'] || keysPressedRef.current['a']) ax = -acc;
+      if (keysPressedRef.current['arrowright'] || keysPressedRef.current['d']) dx = acc; // corrección para 'd' a la derecha
+      if (keysPressedRef.current['d']) ax = acc; // soporte D explícito
 
-      if (dx !== 0 || dy !== 0) {
-        const nextX = Math.max(3, Math.min(97, localPosRef.current.x + dx));
-        const nextY = Math.max(3, Math.min(97, localPosRef.current.y + dy));
+      // Aplicar aceleración y fricción a la velocidad mutable
+      playerVelocityRef.current.x = (playerVelocityRef.current.x + ax) * friction;
+      playerVelocityRef.current.y = (playerVelocityRef.current.y + ay) * friction;
+
+      // Límites de parada mínima para evitar microdesplazamientos
+      if (Math.abs(playerVelocityRef.current.x) < 0.005) playerVelocityRef.current.x = 0;
+      if (Math.abs(playerVelocityRef.current.y) < 0.005) playerVelocityRef.current.y = 0;
+
+      if (playerVelocityRef.current.x !== 0 || playerVelocityRef.current.y !== 0) {
+        const nextX = Math.max(3, Math.min(97, localPosRef.current.x + playerVelocityRef.current.x));
+        const nextY = Math.max(3, Math.min(97, localPosRef.current.y + playerVelocityRef.current.y));
         localPosRef.current = { x: nextX, y: nextY };
 
+        // Reposicionar avatar local directamente en el DOM
         const meEl = document.querySelector('.entity-player-2d.me');
         if (meEl) {
           meEl.style.left = `${nextX}%`;
           meEl.style.top = `${nextY}%`;
         }
 
+        // Reposicionar punto del minimapa local directamente en el DOM
         const meDot = document.querySelector('.minimap-player-dot.me');
         if (meDot) {
           meDot.style.left = `${nextX}%`;
@@ -387,6 +479,7 @@ export default function useGameEngine() {
 
       updateAvatarRotation();
 
+      // 2. Sincronizar dinámicamente oponentes en el DOM (0ms lag React)
       playersRef.current.forEach(p => {
         if (p.id === currentUserRef.current.id) return;
 
@@ -402,6 +495,53 @@ export default function useGameEngine() {
           opDot.style.top = `${p.y}%`;
         }
       });
+
+      // 3. Motor Físico de Balas Voladoras en 2D (Renderizado ultrarrápido bypass-DOM)
+      const arenaEl = document.querySelector('.arena-arena-2d');
+      if (arenaEl) {
+        projectilesRef.current = projectilesRef.current.filter(p => {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.distanceTraveled += Math.hypot(p.vx, p.vy);
+
+          const outOfBounds = p.x < 1 || p.x > 99 || p.y < 1 || p.y > 99 || p.distanceTraveled >= p.maxDistance;
+
+          let bulletEl = document.getElementById(`bullet-${p.id}`);
+          if (outOfBounds) {
+            if (bulletEl) {
+              crearImpactoParticulas(p.x, p.y, p.color);
+              bulletEl.remove();
+            }
+            return false;
+          }
+
+          if (!bulletEl) {
+            bulletEl = document.createElement('div');
+            bulletEl.id = `bullet-${p.id}`;
+            bulletEl.className = `cyber-bullet ${p.color === 'cyan' ? 'me' : 'opponent'}`;
+            bulletEl.style.position = 'absolute';
+            bulletEl.style.width = `${p.size}px`;
+            bulletEl.style.height = `${p.size}px`;
+            bulletEl.style.borderRadius = '50%';
+            bulletEl.style.transform = 'translate(-50%, -50%)';
+
+            const trail = document.createElement('div');
+            trail.className = 'bullet-trail';
+            bulletEl.appendChild(trail);
+
+            arenaEl.appendChild(bulletEl);
+          }
+
+          bulletEl.style.left = `${p.x}%`;
+          bulletEl.style.top = `${p.y}%`;
+
+          // Calcular rotación de la bala para alinear la cola de rastro
+          const bulletAngle = Math.atan2(p.vy, p.vx);
+          bulletEl.style.transform = `translate(-50%, -50%) rotate(${bulletAngle}rad)`;
+
+          return true;
+        });
+      }
 
       gameLoopRef.current = requestAnimationFrame(tick);
     };
@@ -458,6 +598,28 @@ export default function useGameEngine() {
     }
 
     try {
+      // 1. Efecto de Retroceso Físico (Recoil kickback)
+      const recoilForce = 0.62; // fuerza de empuje inverso
+      playerVelocityRef.current.x -= Math.cos(angulo) * recoilForce;
+      playerVelocityRef.current.y -= Math.sin(angulo) * recoilForce;
+
+      // 2. Spawnear bala local a 60 FPS en el motor de proyectiles
+      const bulletId = Math.random().toString(36).substr(2, 9);
+      const bulletSpeed = 1.45;
+      const localProj = {
+        id: bulletId,
+        x: lp.x,
+        y: lp.y,
+        vx: Math.cos(angulo) * bulletSpeed,
+        vy: Math.sin(angulo) * bulletSpeed,
+        color: 'cyan',
+        size: 8,
+        distanceTraveled: 0,
+        maxDistance: 60
+      };
+      projectilesRef.current.push(localProj);
+
+      // 3. Enviar disparo a la base de datos
       await disparar(
         cur.id,
         rm.id,
@@ -467,11 +629,6 @@ export default function useGameEngine() {
         cur.arma_tipo,
         cur.bajas
       );
-
-      setLaserHits(prev => [...prev, { x: lp.x, y: lp.y, angulo, color: 'cyan' }]);
-      setTimeout(() => {
-        setLaserHits(prev => prev.filter(l => !(l.x === lp.x && l.y === lp.y && l.angulo === angulo)));
-      }, 400);
 
     } catch (err) {
       console.error('Error al disparar:', err);
@@ -491,20 +648,6 @@ export default function useGameEngine() {
     const angulo = Math.atan2(dy, dx);
 
     handleDisparar(angulo);
-  };
-
-  const triggerOponenteLaser = (oponente) => {
-    const { x, y, ultima_accion } = oponente;
-    const parts = ultima_accion.split('_');
-    if (parts[0] === 'shoot') {
-      const angulo = parseFloat(parts[1]);
-      if (!isNaN(angulo)) {
-        setLaserHits(prev => [...prev, { x, y, angulo, color: 'pink' }]);
-        setTimeout(() => {
-          setLaserHits(prev => prev.filter(l => !(l.x === x && l.y === y && l.angulo === angulo)));
-        }, 400);
-      }
-    }
   };
 
   // ==========================================
@@ -646,7 +789,6 @@ export default function useGameEngine() {
     players,
     lootBoxes,
     localPos,
-    laserHits,
     showLeaderboard,
     setShowLeaderboard,
     globalLeaderboard,
