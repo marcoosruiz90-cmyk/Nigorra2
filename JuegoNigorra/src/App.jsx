@@ -220,7 +220,7 @@ export default function App() {
     setSelectedAnswer(opcionIdx);
 
     const tiempoTranscurrido = ((Date.now() - startTime) / 1000).toFixed(2);
-    const esCorrecta = opcionIdx === activeQuestion.opcion_correcta;
+    const esCorrecta = Number(opcionIdx) === Number(activeQuestion.opcion_correcta);
 
     setStatusMsg(esCorrecta 
       ? '¡Respuesta registrada! Cruzando los dedos... 🤞' 
@@ -720,7 +720,7 @@ export default function App() {
               <h3>Clasificación Actual</h3>
               <div className="round-standings-list">
                 {players.map(player => {
-                  const acerto = player.ultima_respuesta === activeQuestion.opcion_correcta;
+                  const acerto = Number(player.ultima_respuesta) === Number(activeQuestion.opcion_correcta);
                   
                   return (
                     <div key={player.id} className={`round-standings-item ${acerto ? 'correct' : 'incorrect'}`}>
