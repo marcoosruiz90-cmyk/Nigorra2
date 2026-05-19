@@ -216,7 +216,8 @@ async function recogerBotin(jugador, caja) {
 }
 
 // 6. Realizar Disparo en la Arena 2D Libre
-export async function disparar(jugadorId, salaId, x, y, direccion, armaTipo, bajasActuales) {
+// 6. Realizar Disparo en la Arena 2D Libre en 360 grados
+export async function disparar(jugadorId, salaId, x, y, angulo, armaTipo, bajasActuales) {
   if (!supabase) return;
 
   // A. Reducir munición del atacante
@@ -234,25 +235,12 @@ export async function disparar(jugadorId, salaId, x, y, direccion, armaTipo, baj
     .update({
       arma_tipo: nuevoTipo,
       arma_municion: nuevaMunicion,
-      ultima_accion: `shoot_${direccion}`,
+      ultima_accion: `shoot_${angulo}`, // Guardamos el ángulo de disparo en 360 grados
       timestamp_accion: new Date().toISOString()
     })
     .eq('id', jugadorId);
 
-  // B. Generar coordenadas del rayo láser para pintarlo en la pantalla
-  let celdasAfectadas = [];
-  
-  if (direccion === 'UP') {
-    for (let i = 0; i <= y; i += 5) celdasAfectadas.push({ x, y: y - i });
-  } else if (direccion === 'DOWN') {
-    for (let i = 0; i <= (100 - y); i += 5) celdasAfectadas.push({ x, y: y + i });
-  } else if (direccion === 'LEFT') {
-    for (let i = 0; i <= x; i += 5) celdasAfectadas.push({ x: x - i, y });
-  } else if (direccion === 'RIGHT') {
-    for (let i = 0; i <= (100 - x); i += 5) celdasAfectadas.push({ x: x + i, y });
-  }
-
-  // C. Consultar jugadores oponentes activos
+  // B. Consultar jugadores oponentes activos
   const { data: oponentes } = await supabase
     .from('cr_jugadores')
     .select('*')
@@ -260,30 +248,45 @@ export async function disparar(jugadorId, salaId, x, y, direccion, armaTipo, baj
     .eq('eliminado', false)
     .neq('id', jugadorId);
 
-  if (!oponentes || oponentes.length === 0) return celdasAfectadas;
+  if (!oponentes || oponentes.length === 0) return [];
 
-  // D. Comprobar colisiones de línea de disparo con oponentes
+  // C. Comprobar colisiones de línea de disparo con oponentes en 360 grados (Vectores)
   let bajasHechas = 0;
   const danioArma = { pistola: 30, escopeta: 60, sniper: 80 };
   const damage = danioArma[armaTipo] || 0;
-  const margenColision = 8.0;
+  const margenColision = 4.5; // Radio de hit-box del oponente en %
+
+  const cosA = Math.cos(angulo);
+  const sinA = Math.sin(angulo);
 
   for (const op of oponentes) {
     let golpeado = false;
 
-    if (direccion === 'UP') {
-      golpeado = Math.abs(op.x - x) < margenColision && op.y < y;
-    } else if (direccion === 'DOWN') {
-      golpeado = Math.abs(op.x - x) < margenColision && op.y > y;
-    } else if (direccion === 'LEFT') {
-      golpeado = Math.abs(op.y - y) < margenColision && op.x < x;
-    } else if (direccion === 'RIGHT') {
-      golpeado = Math.abs(op.y - y) < margenColision && op.x > x;
+    // Vector desde el tirador al oponente
+    const dx = op.x - x;
+    const dy = op.y - y;
+
+    // Proyección del vector sobre el rayo de disparo
+    const proj = dx * cosA + dy * sinA;
+
+    // Si el oponente está por delante de la línea del disparo
+    if (proj > 0) {
+      // Coordenadas del punto más cercano al oponente en el rayo
+      const cx = x + proj * cosA;
+      const cy = y + proj * sinA;
+
+      // Distancia mínima desde el oponente a la recta del rayo
+      const distRayo = Math.hypot(cx - op.x, cy - op.y);
+
+      if (distRayo < margenColision) {
+        golpeado = true;
+      }
     }
 
+    // Limitación de alcance para escopeta
     if (armaTipo === 'escopeta' && golpeado) {
-      const distancia = Math.hypot(op.x - x, op.y - y);
-      if (distancia > 30) golpeado = false;
+      const distanciaTirador = Math.hypot(op.x - x, op.y - y);
+      if (distanciaTirador > 30) golpeado = false;
     }
 
     if (golpeado) {
@@ -326,7 +329,7 @@ export async function disparar(jugadorId, salaId, x, y, direccion, armaTipo, baj
 
   await chequearGanador(salaId);
 
-  return celdasAfectadas;
+  return [];
 }
 
 // 7. Chequear Ganador

@@ -59,23 +59,25 @@ export default function Arena2D({
             }}
             title={p.nombre}
           >
-            {p.avatar}
+            <div className="player-avatar-wrapper" style={{ display: 'inline-block', transition: 'transform 0.05s ease-out' }}>
+              {p.avatar}
+            </div>
           </div>
         );
       })}
 
       {/* Efectos de Láseres en 2D en Full-screen */}
       {laserHits.map((h, index) => {
-        let style = {};
-        if (h.direccion === 'UP') {
-          style = { left: `${h.x}%`, top: `${h.y / 2.0}%`, width: '4px', height: `${h.y}%` };
-        } else if (h.direccion === 'DOWN') {
-          style = { left: `${h.x}%`, top: `${(100.0 + h.y) / 2.0}%`, width: '4px', height: `${100.0 - h.y}%` };
-        } else if (h.direccion === 'LEFT') {
-          style = { left: `${h.x / 2.0}%`, top: `${h.y}%`, width: `${h.x}%`, height: '4px' };
-        } else if (h.direccion === 'RIGHT') {
-          style = { left: `${(100.0 + h.x) / 2.0}%`, top: `${h.y}%`, width: `${100.0 - h.x}%`, height: '4px' };
-        }
+        // h.angulo está en radianes, x e y están en % del tablero
+        const style = {
+          left: `${h.x}%`,
+          top: `${h.y}%`,
+          width: '130vmax', // Cruza por completo el viewport diagonalmente
+          height: '4px',
+          transform: `rotate(${h.angulo}rad)`,
+          transformOrigin: 'left center',
+          position: 'absolute'
+        };
         return (
           <div
             key={index}

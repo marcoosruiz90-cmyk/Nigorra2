@@ -873,8 +873,8 @@ body {
 }
 
 @keyframes fadeLaser {
-  0% { opacity: 1; transform: translate(-50%, -50%) scaleY(1); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scaleY(0.1); }
+  0% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* ==========================================================================

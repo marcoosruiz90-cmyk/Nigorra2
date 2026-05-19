@@ -66,6 +66,7 @@ export default function App() {
   const gameLoopRef = useRef(null);
   const lastSentPosRef = useRef({ x: 50, y: 50 });
   const syncInProgressRef = useRef(false); // Seguro para evitar peticiones de red paralelas desordenadas
+  const lastMousePosRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
 
   // Referencias optimizadas para evitar stutters de Garbage Collection y re-renderizados
   const currentUserRef = useRef(currentUser);
@@ -336,8 +337,34 @@ export default function App() {
       keysPressedRef.current[e.key.toLowerCase()] = false;
     };
 
+    // Función para actualizar la rotación del avatar (cara/icono) del jugador apuntando al ratón en 360 grados
+    const updateAvatarRotation = () => {
+      const cur = currentUserRef.current;
+      if (cur.eliminado) return;
+
+      const playerPixelX = (localPosRef.current.x / 100.0) * window.innerWidth;
+      const playerPixelY = (localPosRef.current.y / 100.0) * window.innerHeight;
+
+      const dx = lastMousePosRef.current.x - playerPixelX;
+      const dy = lastMousePosRef.current.y - playerPixelY;
+
+      const angulo = Math.atan2(dy, dx);
+
+      // Aplicar rotación al wrapper de avatar del DOM directamente (0ms React render lag)
+      const wrapper = document.querySelector('.entity-player-2d.me .player-avatar-wrapper');
+      if (wrapper) {
+        wrapper.style.transform = `rotate(${angulo}rad)`;
+      }
+    };
+
+    const handleMouseMove = (e) => {
+      lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+      updateAvatarRotation();
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('mousemove', handleMouseMove);
 
     // Loop a 60 FPS
     const tick = () => {
@@ -363,6 +390,9 @@ export default function App() {
         });
       }
 
+      // Actualizar rotación cada frame para mantener el apuntado mientras se camina
+      updateAvatarRotation();
+
       gameLoopRef.current = requestAnimationFrame(tick);
     };
 
@@ -371,6 +401,7 @@ export default function App() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('mousemove', handleMouseMove);
       if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
     };
   }, [view]);
@@ -422,7 +453,7 @@ export default function App() {
     });
   };
 
-  const handleDisparar = async (direccion) => {
+  const handleDisparar = async (angulo) => {
     const cur = currentUserRef.current;
     const rm = roomRef.current;
     const lp = localPosRef.current;
@@ -432,21 +463,21 @@ export default function App() {
     }
 
     try {
-      // Disparar en la dirección apuntada desde nuestra localPos actual
+      // Disparar en el ángulo continuo de 360 grados (en radianes)
       await disparar(
         cur.id,
         rm.id,
         Math.round(lp.x),
         Math.round(lp.y),
-        direccion,
+        angulo,
         cur.arma_tipo,
         cur.bajas
       );
 
       // Pintar el rayo láser de color cyan para mí
-      setLaserHits(prev => [...prev, { x: lp.x, y: lp.y, direccion, color: 'cyan' }]);
+      setLaserHits(prev => [...prev, { x: lp.x, y: lp.y, angulo, color: 'cyan' }]);
       setTimeout(() => {
-        setLaserHits(prev => prev.filter(l => !(l.x === lp.x && l.y === lp.y && l.direccion === direccion)));
+        setLaserHits(prev => prev.filter(l => !(l.x === lp.x && l.y === lp.y && l.angulo === angulo)));
       }, 400);
 
     } catch (err) {
@@ -454,7 +485,7 @@ export default function App() {
     }
   };
 
-  // Disparo y apuntado con el ratón: calcula el vector entre la posición en píxeles del jugador y el click
+  // Disparo y apuntado con el ratón: calcula el ángulo de 360 grados usando atan2
   const handleMapClick = (e) => {
     const cur = currentUserRef.current;
     if (cur.eliminado || view !== 'game') return;
@@ -466,27 +497,24 @@ export default function App() {
     const dx = e.clientX - playerPixelX;
     const dy = e.clientY - playerPixelY;
 
-    // Determinar la dirección predominante (eje con mayor magnitud)
-    let direccion = 'UP';
-    if (Math.abs(dx) > Math.abs(dy)) {
-      direccion = dx > 0 ? 'RIGHT' : 'LEFT';
-    } else {
-      direccion = dy > 0 ? 'DOWN' : 'UP';
-    }
+    // Calcular el ángulo matemático continuo (de -PI a PI)
+    const angulo = Math.atan2(dy, dx);
 
-    handleDisparar(direccion);
+    handleDisparar(angulo);
   };
 
   // Pintar el rayo láser rojo de un enemigo
   const triggerOponenteLaser = (oponente) => {
     const { x, y, ultima_accion } = oponente;
     const parts = ultima_accion.split('_');
-    const dir = parts[1]; // 'UP', 'DOWN', 'LEFT', 'RIGHT'
-    if (dir) {
-      setLaserHits(prev => [...prev, { x, y, direccion: dir, color: 'pink' }]);
-      setTimeout(() => {
-        setLaserHits(prev => prev.filter(l => !(l.x === x && l.y === y && l.direccion === dir)));
-      }, 400);
+    if (parts[0] === 'shoot') {
+      const angulo = parseFloat(parts[1]); // Parsear ángulo en radianes
+      if (!isNaN(angulo)) {
+        setLaserHits(prev => [...prev, { x, y, angulo, color: 'pink' }]);
+        setTimeout(() => {
+          setLaserHits(prev => prev.filter(l => !(l.x === x && l.y === y && l.angulo === angulo)));
+        }, 400);
+      }
     }
   };
 
