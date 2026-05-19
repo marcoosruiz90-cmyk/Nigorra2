@@ -522,7 +522,7 @@ export default function App() {
                   value={roomCodeInput}
                   onChange={(e) => setRoomCodeInput(e.target.value)}
                   placeholder="CÓDIGO DE SALA" 
-                  maxLength={6} 
+                  maxLength={9} 
                   autoComplete="off"
                   disabled={!isConfigured}
                 />
