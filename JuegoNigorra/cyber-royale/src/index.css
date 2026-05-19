@@ -824,6 +824,7 @@ body {
   filter: drop-shadow(0 0 15px var(--neon-cyan));
   z-index: 60;
   animation: floatPlayerMe 1.5s infinite ease-in-out;
+  transition: none !important; /* Movimiento local instantáneo de 0ms sin retraso CSS */
 }
 
 @keyframes floatPlayerMe {
