@@ -6,10 +6,11 @@ export default function Arena2D({
   currentUser,
   localPos,
   lootBoxes,
-  laserHits
+  laserHits,
+  onMapClick
 }) {
   return (
-    <div className="arena-arena-2d full-screen">
+    <div className="arena-arena-2d full-screen" onClick={onMapClick}>
       {/* Superposición de la Tormenta de Datos en Full-screen */}
       {room && (
         <div 

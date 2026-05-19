@@ -24,7 +24,6 @@ import HUDPlayerBadge from './components/hud/HUDPlayerBadge';
 import HUDWeaponCard from './components/hud/HUDWeaponCard';
 import HUDStatsCard from './components/hud/HUDStatsCard';
 import HUDMinimap from './components/hud/HUDMinimap';
-import HUDMobileControls from './components/hud/HUDMobileControls';
 
 export default function App() {
   // ==========================================
@@ -331,12 +330,6 @@ export default function App() {
         e.preventDefault();
       }
       keysPressedRef.current[e.key.toLowerCase()] = true;
-
-      // Disparos directos independientes (presión única)
-      if (['i', 'I'].includes(e.key)) handleDisparar('UP');
-      else if (['k', 'K'].includes(e.key)) handleDisparar('DOWN');
-      else if (['j', 'J'].includes(e.key)) handleDisparar('LEFT');
-      else if (['l', 'L'].includes(e.key)) handleDisparar('RIGHT');
     };
 
     const handleKeyUp = (e) => {
@@ -459,6 +452,29 @@ export default function App() {
     } catch (err) {
       console.error('Error al disparar:', err);
     }
+  };
+
+  // Disparo y apuntado con el ratón: calcula el vector entre la posición en píxeles del jugador y el click
+  const handleMapClick = (e) => {
+    const cur = currentUserRef.current;
+    if (cur.eliminado || view !== 'game') return;
+
+    // Obtener la posición del jugador local en píxeles (basada en porcentaje sobre el viewport full-screen)
+    const playerPixelX = (localPosRef.current.x / 100.0) * window.innerWidth;
+    const playerPixelY = (localPosRef.current.y / 100.0) * window.innerHeight;
+
+    const dx = e.clientX - playerPixelX;
+    const dy = e.clientY - playerPixelY;
+
+    // Determinar la dirección predominante (eje con mayor magnitud)
+    let direccion = 'UP';
+    if (Math.abs(dx) > Math.abs(dy)) {
+      direccion = dx > 0 ? 'RIGHT' : 'LEFT';
+    } else {
+      direccion = dy > 0 ? 'DOWN' : 'UP';
+    }
+
+    handleDisparar(direccion);
   };
 
   // Pintar el rayo láser rojo de un enemigo
@@ -675,6 +691,7 @@ export default function App() {
             localPos={localPos}
             lootBoxes={lootBoxes}
             laserHits={laserHits}
+            onMapClick={handleMapClick}
           />
 
           {/* Sistema de HUD AAA (Overlays) */}
@@ -699,13 +716,6 @@ export default function App() {
               👁️ ESPECTANDO A LOS COMBATIENTES ACTIVOS
             </div>
           )}
-
-          {/* Controles táctiles flotantes en móvil */}
-          <HUDMobileControls
-            currentUser={currentUser}
-            handleMoverTáctil={handleMoverTáctil}
-            handleDisparar={handleDisparar}
-          />
         </section>
       )}
 
