@@ -380,6 +380,7 @@ export default function App() {
     if (!currentUser.esHost || !room) return;
     try {
       await iniciarPartida(room.id);
+      setView('game');
     } catch (err) {
       console.error(err);
     }
