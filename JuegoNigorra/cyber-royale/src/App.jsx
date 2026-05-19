@@ -658,197 +658,227 @@ export default function App() {
          VISTA 3: EN ARENA DE JUEGO (GAMEPLAY)
          ========================================== */}
       {view === 'game' && room && (
-        <section className="view active">
+        <section className="view active" style={{ padding: 0, margin: 0, background: '#000', overflow: 'hidden' }}>
           {stormWarning && (
-            <div style={{ position: 'fixed', top: '10%', left: '50%', transform: 'translateX(-50%)', background: 'var(--neon-pink)', color: '#fff', padding: '1rem 2rem', borderRadius: '8px', zIndex: 1000, fontFamily: 'var(--font-title)', fontWeight: 'bold', boxShadow: '0 0 20px var(--neon-pink)', textTransform: 'uppercase', letterSpacing: '2px', animation: 'pulse 1s infinite' }}>
+            <div style={{ position: 'fixed', top: '15%', left: '50%', transform: 'translateX(-50%)', background: 'var(--neon-pink)', color: '#fff', padding: '0.8rem 1.5rem', borderRadius: '10px', zIndex: 1000, fontFamily: 'var(--font-title)', fontWeight: 'bold', boxShadow: '0 0 20px var(--neon-pink)', textTransform: 'uppercase', letterSpacing: '1px', animation: 'pulse 1s infinite', fontSize: '0.9rem' }}>
               ⚠️ ¡La Tormenta de Datos se ha contraído! ⚠️
             </div>
           )}
 
-          <div className="game-layout">
-            <div className="game-main">
-              {/* Barra Superior del Gameplay */}
-              <div className="game-info-bar">
-                <div className="storm-timer">
-                  <span>⛈️ Tormenta en:</span>
-                  <span className="storm-value">{currentUser.esHost ? `${stormCountdown}s` : 'Automático'}</span>
-                </div>
-                <div>
-                  <span style={{ fontSize: '0.9rem', color: '#8c8c9e' }}>Radio Seguro: </span>
-                  <span style={{ color: 'var(--neon-cyan)', fontWeight: 'bold' }}>{room.tormenta_radio} celdas</span>
-                </div>
-                {currentUser.eliminado && (
-                  <span className="spectator-indicator">👁️ MODO ESPECTADOR HACKER ACTIVO</span>
-                )}
-              </div>
+          {/* 1. MAPA DE TODA LA PANTALLA */}
+          <div className="arena-arena-2d full-screen">
+            {/* Superposición de la Tormenta de Datos en Full-screen */}
+            {room && (
+              <div 
+                className="storm-safe-zone-overlay" 
+                style={{
+                  width: `${room.tormenta_radio * 10.0}%`,
+                  height: `${room.tormenta_radio * 10.0}%`
+                }}
+              />
+            )}
 
-              {/* El Tablero 2D Continuo */}
-              <div className="arena-arena-2d">
-                {/* 1. Superposición de la Tormenta de Datos */}
-                {room && (
+            {/* Cajas de Loot */}
+            {lootBoxes.filter(c => !c.recogida).map(c => {
+              let icon = '📦';
+              if (c.tipo === 'botiquin') icon = '❤️';
+              else if (c.tipo === 'escudo') icon = '🛡️';
+              else if (c.tipo === 'pistola') icon = '🔫';
+              else if (c.tipo === 'escopeta') icon = '🔥';
+              else if (c.tipo === 'sniper') icon = '⚡';
+              
+              return (
+                <div 
+                  key={c.id} 
+                  className="entity-loot-2d" 
+                  style={{ left: `${c.x}%`, top: `${c.y}%` }}
+                >
+                  {icon}
+                </div>
+              );
+            })}
+
+            {/* Jugadores en Full-screen */}
+            {players.map(p => {
+              const isMe = p.id === currentUser.id;
+              const pos = isMe ? localPos : { x: p.x, y: p.y };
+
+              if (p.eliminado) return null;
+
+              return (
+                <div
+                  key={p.id}
+                  className={`entity-player-2d ${isMe ? 'me' : ''}`}
+                  style={{
+                    left: `${pos.x}%`,
+                    top: `${pos.y}%`
+                  }}
+                  title={p.nombre}
+                >
+                  {p.avatar}
+                </div>
+              );
+            })}
+
+            {/* Efectos de Láseres en 2D en Full-screen */}
+            {laserHits.map((h, index) => {
+              let style = {};
+              if (h.direccion === 'UP') {
+                style = { left: `${h.x}%`, top: `${h.y / 2.0}%`, width: '4px', height: `${h.y}%` };
+              } else if (h.direccion === 'DOWN') {
+                style = { left: `${h.x}%`, top: `${(100.0 + h.y) / 2.0}%`, width: '4px', height: `${100.0 - h.y}%` };
+              } else if (h.direccion === 'LEFT') {
+                style = { left: `${h.x / 2.0}%`, top: `${h.y}%`, width: `${h.x}%`, height: '4px' };
+              } else if (h.direccion === 'RIGHT') {
+                style = { left: `${(100.0 + h.x) / 2.0}%`, top: `${h.y}%`, width: `${100.0 - h.x}%`, height: '4px' };
+              }
+              return (
+                <div
+                  key={index}
+                  className={`laser-line-2d ${h.color === 'pink' ? 'opponent' : ''}`}
+                  style={style}
+                />
+              );
+            })}
+          </div>
+
+          {/* ==========================================
+             SISTEMA DE HUD DE JUEGO AAA (OVERLAYS)
+             ========================================== */}
+
+          {/* ARRIBA A LA IZQUIERDA: Nombre del jugador */}
+          <div className="hud-top-left">
+            <div className="hud-player-badge">
+              <span className="hud-avatar">{currentUser.avatar}</span>
+              <span className="hud-name">{currentUser.nombre}</span>
+            </div>
+          </div>
+
+          {/* ARRIBA A LA DERECHA: Minimapa, Kills, y Salir */}
+          <div className="hud-top-right">
+            {/* Minimapa Táctico 2D */}
+            <div className="hud-minimap">
+              {/* Storm Safe Area on Minimap */}
+              <div 
+                className="minimap-storm-overlay"
+                style={{
+                  width: `${room.tormenta_radio * 10.0}%`,
+                  height: `${room.tormenta_radio * 10.0}%`
+                }}
+              />
+              
+              {/* Cajas de botín en el minimapa */}
+              {lootBoxes.filter(c => !c.recogida).map(c => (
+                <div 
+                  key={c.id} 
+                  className="minimap-loot-dot" 
+                  style={{ left: `${c.x}%`, top: `${c.y}%` }}
+                />
+              ))}
+
+              {/* Jugadores en el minimapa */}
+              {players.map(p => {
+                if (p.eliminado) return null;
+                const isMe = p.id === currentUser.id;
+                const pos = isMe ? localPos : { x: p.x, y: p.y };
+                return (
                   <div 
-                    className="storm-safe-zone-overlay" 
-                    style={{
-                      width: `${room.tormenta_radio * 10.0}%`,
-                      height: `${room.tormenta_radio * 10.0}%`
-                    }}
+                    key={p.id} 
+                    className={`minimap-player-dot ${isMe ? 'me' : ''}`}
+                    style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
                   />
-                )}
+                );
+              })}
+            </div>
 
-                {/* 2. Cajas de Loot */}
-                {lootBoxes.filter(c => !c.recogida).map(c => {
-                  let icon = '📦';
-                  if (c.tipo === 'botiquin') icon = '❤️';
-                  else if (c.tipo === 'escudo') icon = '🛡️';
-                  else if (c.tipo === 'pistola') icon = '🔫';
-                  else if (c.tipo === 'escopeta') icon = '🔥';
-                  else if (c.tipo === 'sniper') icon = '⚡';
-                  
-                  return (
-                    <div 
-                      key={c.id} 
-                      className="entity-loot-2d" 
-                      style={{ left: `${c.x}%`, top: `${c.y}%` }}
-                    >
-                      {icon}
-                    </div>
-                  );
-                })}
+            {/* Contador de Kills */}
+            <div className="hud-kills-badge">
+              <span className="kills-icon">💀</span>
+              <span>{currentUser.bajas} BAJAS</span>
+            </div>
 
-                {/* 3. Jugadores */}
-                {players.map(p => {
-                  const isMe = p.id === currentUser.id;
-                  const pos = isMe ? localPos : { x: p.x, y: p.y };
+            {/* Botón de Abandonar Sala */}
+            <button className="hud-exit-btn" onClick={handleSalirPartida}>
+              SALIR DE LA ARENA
+            </button>
+          </div>
 
-                  if (p.eliminado) return null;
-
-                  return (
-                    <div
-                      key={p.id}
-                      className={`entity-player-2d ${isMe ? 'me' : ''}`}
-                      style={{
-                        left: `${pos.x}%`,
-                        top: `${pos.y}%`
-                      }}
-                      title={p.nombre}
-                    >
-                      {p.avatar}
-                    </div>
-                  );
-                })}
-
-                {/* 4. Efectos de Láseres en 2D */}
-                {laserHits.map((h, index) => {
-                  let style = {};
-                  if (h.direccion === 'UP') {
-                    style = { left: `${h.x}%`, top: `${h.y / 2.0}%`, width: '4px', height: `${h.y}%` };
-                  } else if (h.direccion === 'DOWN') {
-                    style = { left: `${h.x}%`, top: `${(100.0 + h.y) / 2.0}%`, width: '4px', height: `${100.0 - h.y}%` };
-                  } else if (h.direccion === 'LEFT') {
-                    style = { left: `${h.x / 2.0}%`, top: `${h.y}%`, width: `${h.x}%`, height: '4px' };
-                  } else if (h.direccion === 'RIGHT') {
-                    style = { left: `${(100.0 + h.x) / 2.0}%`, top: `${h.y}%`, width: `${100.0 - h.x}%`, height: '4px' };
-                  }
-                  return (
-                    <div
-                      key={index}
-                      className={`laser-line-2d ${h.color === 'pink' ? 'opponent' : ''}`}
-                      style={style}
-                    />
-                  );
-                })}
+          {/* ABAJO A LA IZQUIERDA: Armamento */}
+          <div className="hud-bottom-left">
+            <div className="hud-weapon-card">
+              <div className="hud-weapon-icon">
+                {currentUser.arma_tipo === 'ninguna' && '🥋'}
+                {currentUser.arma_tipo === 'pistola' && '🔫'}
+                {currentUser.arma_tipo === 'escopeta' && '🔥'}
+                {currentUser.arma_tipo === 'sniper' && '⚡'}
               </div>
+              <div className="hud-weapon-details">
+                <span className="hud-weapon-label">ARMAMENTO DISPONIBLE</span>
+                <span className="hud-weapon-name">
+                  {currentUser.arma_tipo === 'ninguna' ? 'MANOS LIBRES' : currentUser.arma_tipo.toUpperCase()}
+                </span>
+                <span className="hud-weapon-ammo">
+                  {currentUser.arma_tipo === 'ninguna' ? 'SIN MUNICIÓN' : `${currentUser.arma_municion} BALAS`}
+                </span>
+              </div>
+            </div>
+          </div>
 
-              {/* Consola de Control de Estadísticas e Instrucciones */}
-              <div className="tactical-console">
-                <div className="status-vitals">
-                  {/* Barra de Vida */}
-                  <div className="stat-bar-container">
-                    <div className="stat-bar-header">
-                      <span className="bar-vida">❤️ Integridad Física</span>
-                      <span>{currentUser.vida}%</span>
-                    </div>
-                    <div className="progress-bar-bg">
-                      <div className="progress-bar-fill fill-vida" style={{ width: `${currentUser.vida}%` }}></div>
-                    </div>
-                  </div>
-
-                  {/* Barra de Escudo */}
-                  <div className="stat-bar-container">
-                    <div className="stat-bar-header">
-                      <span className="bar-escudo">🛡️ Escudo Defensivo</span>
-                      <span>{currentUser.escudo}%</span>
-                    </div>
-                    <div className="progress-bar-bg">
-                      <div className="progress-bar-fill fill-escudo" style={{ width: `${currentUser.escudo}%` }}></div>
-                    </div>
-                  </div>
-
-                  {/* Instrucciones Rápidas */}
-                  <div style={{ fontSize: '0.8rem', color: '#8c8c9e', marginTop: '0.25rem' }}>
-                    💻 <strong>PC:</strong> Usa <strong>W, A, S, D</strong> o las <strong>Flechas</strong> para moverte libremente. Apunta y dispara láseres con <strong>I, J, K, L</strong>.
-                  </div>
+          {/* ABAJO A LA DERECHA: Integridad Física (Vida) y Escudo */}
+          <div className="hud-bottom-right">
+            <div className="hud-stats-card">
+              {/* Barra de Vida */}
+              <div className="hud-stat-bar-container">
+                <div className="hud-stat-bar-header">
+                  <span className="hud-bar-vida">❤️ INTEGRIDAD FÍSICA</span>
+                  <span>{currentUser.vida}%</span>
                 </div>
-
-                {/* Armamento Actual */}
-                <div className="status-weapon">
-                  <span className="weapon-title">Armamento</span>
-                  <span className="weapon-name">{currentUser.arma_tipo === 'ninguna' ? '🎴 Sin Armas' : currentUser.arma_tipo}</span>
-                  <span className="weapon-ammo">
-                    {currentUser.arma_tipo === 'ninguna' ? '0' : `${currentUser.arma_municion} balas`}
-                  </span>
+                <div className="hud-progress-bar-bg">
+                  <div className="hud-progress-bar-fill fill-vida" style={{ width: `${currentUser.vida}%` }}></div>
                 </div>
               </div>
 
-              {/* Controles táctiles en pantalla para móviles */}
-              <div className="on-screen-controls">
-                {/* D-Pad de Movimiento Continuo */}
-                <div className="d-pad">
-                  <button className="d-btn d-up" onClick={() => handleMoverTáctil('UP')}>▲</button>
-                  <button className="d-btn d-left" onClick={() => handleMoverTáctil('LEFT')}>◀</button>
-                  <button className="d-btn d-right" onClick={() => handleMoverTáctil('RIGHT')}>▶</button>
-                  <button className="d-btn d-down" onClick={() => handleMoverTáctil('DOWN')}>▼</button>
+              {/* Barra de Escudo */}
+              <div className="hud-stat-bar-container" style={{ marginTop: '0.8rem' }}>
+                <div className="hud-stat-bar-header">
+                  <span className="hud-bar-escudo">🛡️ ESCUDO DEFENSIVO</span>
+                  <span>{currentUser.escudo}%</span>
                 </div>
-
-                {/* Action Pad de Disparo */}
-                <div className="action-pad">
-                  <span style={{ fontSize: '0.75rem', color: 'var(--neon-pink)', fontFamily: 'var(--font-title)', textTransform: 'uppercase', letterSpacing: '1px', textAlign: 'center', marginBottom: '4px' }}>🎯 Direcciones de Disparo</span>
-                  <div className="fire-pad-grid">
-                    <button className="btn-fire-dir" onClick={() => handleDisparar('UP')} disabled={currentUser.arma_tipo === 'ninguna' || currentUser.arma_municion <= 0}>▲ Disparar</button>
-                    <button className="btn-fire-dir" onClick={() => handleDisparar('DOWN')} disabled={currentUser.arma_tipo === 'ninguna' || currentUser.arma_municion <= 0}>▼ Disparar</button>
-                    <button className="btn-fire-dir" onClick={() => handleDisparar('LEFT')} disabled={currentUser.arma_tipo === 'ninguna' || currentUser.arma_municion <= 0}>◀ Disparar</button>
-                    <button className="btn-fire-dir" onClick={() => handleDisparar('RIGHT')} disabled={currentUser.arma_tipo === 'ninguna' || currentUser.arma_municion <= 0}>▶ Disparar</button>
-                  </div>
+                <div className="hud-progress-bar-bg">
+                  <div className="hud-progress-bar-fill fill-escudo" style={{ width: `${currentUser.escudo}%` }}></div>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Clasificación lateral en vivo */}
-            <aside className="game-sidebar card glassmorphic">
-              <h3>Combatientes Vivos ({players.filter(p => !p.eliminado).length})</h3>
-              <div className="live-standings">
-                {players.map(p => (
-                  <div key={p.id} className={`standing-item ${p.id === currentUser.id ? 'me' : ''} ${p.eliminado ? 'eliminated' : ''}`}>
-                    <div className="standing-left">
-                      <span className="standing-avatar">{p.avatar}</span>
-                      <span className="standing-name">{p.nombre}</span>
-                      <span className="standing-kills">💀 {p.bajas}</span>
-                    </div>
-                    <div className="standing-right">
-                      {p.eliminado ? (
-                        <span className="skull-icon">💀 Muerto</span>
-                      ) : (
-                        <span className="hp-indicator">{p.vida} HP</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
+          {/* BANNER DE ESPECTADOR (SI ELIMINADO) */}
+          {currentUser.eliminado && (
+            <div className="hud-spectator-banner">
+              👁️ ESPECTANDO A LOS COMBATIENTES ACTIVOS
+            </div>
+          )}
+
+          {/* CONTROLES TÁCTILES FLOTANTES (PARA MÓVILES) */}
+          <div className="hud-mobile-controls">
+            {/* D-Pad de Movimiento */}
+            <div className="hud-d-pad">
+              <button className="hud-d-btn d-up" onClick={() => handleMoverTáctil('UP')}>▲</button>
+              <div className="hud-d-pad-mid">
+                <button className="hud-d-btn d-left" onClick={() => handleMoverTáctil('LEFT')}>◀</button>
+                <button className="hud-d-btn d-right" onClick={() => handleMoverTáctil('RIGHT')}>▶</button>
               </div>
+              <button className="hud-d-btn d-down" onClick={() => handleMoverTáctil('DOWN')}>▼</button>
+            </div>
 
-              <button className="btn btn-danger" style={{ marginTop: 'auto' }} onClick={handleSalirPartida}>
-                Salir del Combate
-              </button>
-            </aside>
+            {/* Action Pad de Disparo */}
+            <div className="hud-action-pad">
+              <button className="hud-fire-btn" onClick={() => handleDisparar('UP')} disabled={currentUser.arma_tipo === 'ninguna' || currentUser.arma_municion <= 0}>▲</button>
+              <div className="hud-fire-mid">
+                <button className="hud-fire-btn" onClick={() => handleDisparar('LEFT')} disabled={currentUser.arma_tipo === 'ninguna' || currentUser.arma_municion <= 0}>◀</button>
+                <button className="hud-fire-btn" onClick={() => handleDisparar('RIGHT')} disabled={currentUser.arma_tipo === 'ninguna' || currentUser.arma_municion <= 0}>▶</button>
+              </div>
+              <button className="hud-fire-btn" onClick={() => handleDisparar('DOWN')} disabled={currentUser.arma_tipo === 'ninguna' || currentUser.arma_municion <= 0}>▼</button>
+            </div>
           </div>
         </section>
       )}
